@@ -32,6 +32,7 @@ type ui struct {
 	bbStatus  *walk.Label
 	tray      *walk.NotifyIcon
 	eng       *engine.Engine
+	ctx       context.Context
 	bbRunning bool
 }
 
@@ -39,7 +40,7 @@ type ui struct {
 func Run(ctx context.Context, e *engine.Engine) error {
 	runtime.LockOSThread()
 
-	u := &ui{eng: e}
+	u := &ui{eng: e, ctx: ctx}
 
 	mono := decl.Font{Family: "Consolas", PointSize: 10}
 	if err := (decl.MainWindow{
@@ -169,7 +170,8 @@ func (u *ui) onBufferbloat() {
 	u.bbButton.SetEnabled(false)
 	u.bbStatus.SetText("Testing… saturating link (~10s)")
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+		// Derive from the app context so shutdown cancels an in-flight test.
+		ctx, cancel := context.WithTimeout(u.ctx, 40*time.Second)
 		defer cancel()
 		res, err := u.eng.RunBufferbloat(ctx, bufferbloat.DefaultOptions())
 		u.mw.Synchronize(func() {

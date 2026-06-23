@@ -60,7 +60,9 @@ func (c *Collector) Sample(ctx context.Context) (Stats, error) {
 		recv, sent := counters[0].BytesRecv, counters[0].BytesSent
 		if c.primed {
 			dt := now.Sub(c.lastTime).Seconds()
-			if dt > 0 {
+			// Guard against counter resets/wraparound (e.g. adapter reconnect),
+			// which would otherwise underflow the unsigned subtraction.
+			if dt > 0 && recv >= c.lastRecv && sent >= c.lastSent {
 				st.InMbps = bytesToMbps(recv-c.lastRecv, dt)
 				st.OutMbps = bytesToMbps(sent-c.lastSent, dt)
 			}

@@ -5,6 +5,7 @@ package dnsprobe
 
 import (
 	"context"
+	"errors"
 	"net"
 	"time"
 )
@@ -43,6 +44,18 @@ func Measure(ctx context.Context, domains []string, perTimeout time.Duration) Re
 		elapsed := time.Since(start)
 		cancel()
 		if err != nil {
+			// NXDOMAIN means the resolver answered promptly (name simply does
+			// not exist) — that is a successful latency measurement, not a
+			// resolver failure, so we record it rather than counting it failed.
+			var de *net.DNSError
+			if errors.As(err, &de) && de.IsNotFound {
+				ok++
+				sum += elapsed
+				if elapsed > res.Max {
+					res.Max = elapsed
+				}
+				continue
+			}
 			res.Failed++
 			continue
 		}

@@ -59,20 +59,37 @@ func FirstPublicHop(hops []Hop) *Hop {
 	return nil
 }
 
-// IsPublicIP reports whether ip is a routable public address (not private,
-// loopback, link-local, or CGNAT 100.64/10).
+// IsPublicIP reports whether ip is a routable public address, excluding
+// private, loopback, link-local, multicast, CGNAT (100.64/10), and the various
+// reserved/special-use IPv4 ranges that can appear as traceroute hops but are
+// never a real ISP edge.
 func IsPublicIP(ip net.IP) bool {
-	if ip == nil || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsUnspecified() {
+	if ip == nil || ip.IsLoopback() || ip.IsLinkLocalUnicast() ||
+		ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
 		return false
 	}
 	if ip.IsPrivate() {
 		return false
 	}
-	if v4 := ip.To4(); v4 != nil {
-		// CGNAT 100.64.0.0/10
-		if v4[0] == 100 && v4[1] >= 64 && v4[1] <= 127 {
-			return false
-		}
+	v4 := ip.To4()
+	if v4 == nil {
+		return true // IPv6 global unicast (private/link-local already excluded)
+	}
+	switch {
+	case v4[0] == 0: // 0.0.0.0/8 "this network"
+		return false
+	case v4[0] == 100 && v4[1] >= 64 && v4[1] <= 127: // CGNAT 100.64.0.0/10
+		return false
+	case v4[0] == 192 && v4[1] == 0 && v4[2] == 2: // TEST-NET-1 192.0.2.0/24
+		return false
+	case v4[0] == 198 && (v4[1] == 18 || v4[1] == 19): // benchmarking 198.18.0.0/15
+		return false
+	case v4[0] == 198 && v4[1] == 51 && v4[2] == 100: // TEST-NET-2 198.51.100.0/24
+		return false
+	case v4[0] == 203 && v4[1] == 0 && v4[2] == 113: // TEST-NET-3 203.0.113.0/24
+		return false
+	case v4[0] >= 240: // 240.0.0.0/4 reserved (incl. 255.255.255.255)
+		return false
 	}
 	return true
 }

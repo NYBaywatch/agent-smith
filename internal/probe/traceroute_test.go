@@ -22,6 +22,15 @@ func TestIsPublicIP(t *testing.T) {
 		{"100.127.255.1", false}, // CGNAT upper
 		{"100.128.0.1", true},   // just outside CGNAT
 		{"0.0.0.0", false},      // unspecified
+		{"0.1.2.3", false},      // 0.0.0.0/8 "this network"
+		{"224.0.0.1", false},    // multicast
+		{"240.0.0.1", false},    // reserved 240/4
+		{"255.255.255.255", false}, // broadcast
+		{"192.0.2.5", false},    // TEST-NET-1
+		{"198.18.0.1", false},   // benchmarking
+		{"198.51.100.7", false}, // TEST-NET-2
+		{"203.0.113.9", false},  // TEST-NET-3
+		{"203.0.114.9", true},   // adjacent to TEST-NET-3, routable
 	}
 	for _, c := range cases {
 		ip := net.ParseIP(c.ip)

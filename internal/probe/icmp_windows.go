@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"runtime"
 	"time"
 	"unsafe"
 
@@ -99,9 +100,13 @@ func (p *winPinger) send(ctx context.Context, ip net.IP, ttl int, timeout time.D
 
 	dest := uint32(v4[0]) | uint32(v4[1])<<8 | uint32(v4[2])<<16 | uint32(v4[3])<<24
 
+	// Keep opt in function scope and pair the call with runtime.KeepAlive so the
+	// IP_OPTION_INFORMATION the kernel reads cannot be moved/collected between
+	// taking its address and the syscall (unsafe.Pointer liveness rule).
+	var opt ipOptionInformation
 	var optPtr uintptr
 	if ttl > 0 {
-		opt := ipOptionInformation{TTL: uint8(ttl)}
+		opt.TTL = uint8(ttl)
 		optPtr = uintptr(unsafe.Pointer(&opt))
 	}
 
@@ -124,10 +129,8 @@ func (p *winPinger) send(ctx context.Context, ip net.IP, ttl int, timeout time.D
 		uintptr(timeoutMs),
 	)
 	elapsed := time.Since(start)
-	// Keep opt alive until after the call.
-	if ttl > 0 {
-		_ = optPtr
-	}
+	runtime.KeepAlive(&opt)
+	runtime.KeepAlive(&replyBuf)
 
 	if ret == 0 {
 		return classifyError(callErr), nil

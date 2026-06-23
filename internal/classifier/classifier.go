@@ -162,12 +162,18 @@ func ClassifyWith(s model.Snapshot, t Thresholds) model.Verdict {
 	// --- Rule 5: Upstream internet (LAN+ISP fine, public anchors bad) ---
 	if internetDegraded(s, t) && (s.Gateway == nil || !gatewayDegraded(s, t, onWiFi)) {
 		best := bestInternet(s)
+		detail := "Your local network and ISP edge look fine, but public hosts are unreachable — no replies from the internet anchors. The issue is upstream of your connection."
+		sev := model.SevCritical
+		if best.Alive {
+			detail = fmt.Sprintf("Your local network and ISP edge look fine, but reaching public hosts is poor (best anchor: %s, jitter %s, loss %.1f%%). The issue is in the wider internet or the game server's path.", round(best.Stats.Mean), round(best.Stats.Jitter), best.Stats.Loss*100)
+			sev = model.SevDegraded
+		}
 		return model.Verdict{
 			Culprit:    model.CulpritUpstream,
-			Severity:   model.SevDegraded,
+			Severity:   sev,
 			Confidence: 0.6,
 			Headline:   "Problem is upstream / on the route to servers",
-			Detail:     fmt.Sprintf("Your local network and ISP edge look fine, but reaching public hosts is poor (best anchor: %s, jitter %s, loss %.1f%%). The issue is in the wider internet or the game server's path.", round(best.Stats.Mean), round(best.Stats.Jitter), best.Stats.Loss*100),
+			Detail:     detail,
 			Fix:        "Usually transient peering/route congestion you can't control. Try a different server region, or a reputable VPN if a specific route is bad.",
 		}
 	}
@@ -274,6 +280,9 @@ func internetSummary(s model.Snapshot) string {
 		return "Awaiting samples…"
 	}
 	b := bestInternet(s)
+	if !b.Alive {
+		return "Awaiting samples…"
+	}
 	return fmt.Sprintf("Internet RTT ~%s, jitter %s, loss %.1f%% (rated %s).",
 		round(b.Stats.Mean), round(b.Stats.Jitter), b.Stats.Loss*100, metrics.RateLatency(b.Stats.Mean))
 }

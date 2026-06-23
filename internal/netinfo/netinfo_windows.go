@@ -114,7 +114,7 @@ func adapterAddresses() (*windows.IpAdapterAddresses, error) {
 // fillCounters populates error/discard/octet counters via GetIfEntry2Ex.
 func fillCounters(iface *Interface) {
 	row := windows.MibIfRow2{InterfaceIndex: iface.Index}
-	if err := windows.GetIfEntry2Ex(windows.MibIfTableNormal, &row); err != nil {
+	if err := windows.GetIfEntry2Ex(windows.MibIfEntryNormal, &row); err != nil {
 		return // counters simply remain zero if unavailable
 	}
 	iface.InErrors = row.InErrors

@@ -201,7 +201,10 @@ func samplePingsDuration(ctx context.Context, p probe.Pinger, target net.IP, dur
 		if err == nil && r.OK {
 			out = append(out, r.RTT)
 		}
-		sleep(ctx, interval)
+		// Skip the trailing sleep if the next probe would fall past the deadline.
+		if time.Now().Add(interval).Before(deadline) {
+			sleep(ctx, interval)
+		}
 	}
 	return out
 }

@@ -62,17 +62,14 @@ type Stats struct {
 
 // Window is a fixed-capacity ring buffer of probe samples for one target. It is
 // not safe for concurrent use; callers should guard it or use one per goroutine.
+//
+// All statistics — including jitter and EWMA — are computed over the current
+// window contents in Stats(), so every field shares the same time horizon and
+// old samples stop influencing the result once they are evicted.
 type Window struct {
 	cap     int
 	samples []Sample
-	// streaming RFC 3550 jitter state
-	jitter   float64 // in seconds
-	haveLast bool
-	lastRTT  time.Duration
-	// EWMA state
-	ewma     float64 // in seconds
-	haveEWMA bool
-	alpha    float64
+	alpha   float64 // EWMA smoothing factor
 }
 
 // NewWindow creates a rolling window holding up to capacity samples. The EWMA
@@ -87,32 +84,12 @@ func NewWindow(capacity int, alpha float64) *Window {
 	return &Window{cap: capacity, samples: make([]Sample, 0, capacity), alpha: alpha}
 }
 
-// Add records a sample, updating streaming jitter and EWMA. The oldest sample is
-// evicted once capacity is exceeded.
+// Add records a sample, evicting the oldest once capacity is exceeded.
 func (w *Window) Add(s Sample) {
 	if len(w.samples) == w.cap {
 		w.samples = w.samples[1:]
 	}
 	w.samples = append(w.samples, s)
-
-	if s.OK {
-		// RFC 3550 interarrival jitter adapted to successive RTT deltas:
-		// J += (|D| - J) / 16, where D is the change between consecutive RTTs.
-		if w.haveLast {
-			d := math.Abs(s.RTT.Seconds() - w.lastRTT.Seconds())
-			w.jitter += (d - w.jitter) / 16.0
-		}
-		w.lastRTT = s.RTT
-		w.haveLast = true
-
-		rs := s.RTT.Seconds()
-		if !w.haveEWMA {
-			w.ewma = rs
-			w.haveEWMA = true
-		} else {
-			w.ewma = w.alpha*rs + (1-w.alpha)*w.ewma
-		}
-	}
 }
 
 // Len returns the number of samples currently held.
@@ -127,18 +104,35 @@ func (w *Window) Stats() Stats {
 	}
 
 	rtts := make([]float64, 0, len(w.samples))
-	var sum float64
+	var sum, jitter, ewma, lastRTT float64
+	var haveLast, haveEWMA bool
 	for _, s := range w.samples {
-		if s.OK {
-			rtts = append(rtts, s.RTT.Seconds())
-			sum += s.RTT.Seconds()
+		if !s.OK {
+			// RFC 3550 interarrival jitter is defined over consecutive packets;
+			// a loss/timeout breaks that adjacency, so reset the delta chain.
+			haveLast = false
+			continue
+		}
+		rs := s.RTT.Seconds()
+		rtts = append(rtts, rs)
+		sum += rs
+		// J += (|D| - J)/16, where D is the change between consecutive RTTs.
+		if haveLast {
+			jitter += (math.Abs(rs-lastRTT) - jitter) / 16.0
+		}
+		lastRTT = rs
+		haveLast = true
+		if !haveEWMA {
+			ewma, haveEWMA = rs, true
+		} else {
+			ewma = w.alpha*rs + (1-w.alpha)*ewma
 		}
 	}
 	st.Recv = len(rtts)
 	st.Loss = float64(st.Sent-st.Recv) / float64(st.Sent)
-	st.Jitter = secs(w.jitter)
-	if w.haveEWMA {
-		st.EWMA = secs(w.ewma)
+	st.Jitter = secs(jitter)
+	if haveEWMA {
+		st.EWMA = secs(ewma)
 	}
 	if st.Recv == 0 {
 		return st
