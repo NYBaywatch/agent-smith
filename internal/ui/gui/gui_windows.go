@@ -53,6 +53,14 @@ type ringRow struct {
 	ring, target, avg, p95, jitter, loss *walk.Label
 }
 
+// issueItem is one row in the events TableView (reflected by field name).
+type issueItem struct {
+	When     string
+	Severity string
+	Culprit  string
+	Issue    string
+}
+
 // scaledLabel remembers a label's base font so Ctrl+wheel can rescale all text.
 type scaledLabel struct {
 	lbl    *walk.Label
@@ -72,7 +80,11 @@ type ui struct {
 	detail     *walk.Label
 	fix        *walk.Label
 	spark      *walk.CustomWidget
-	issuesBox  *walk.TextEdit
+
+	issueTable  *walk.TableView
+	issueDetail *walk.TextEdit
+	issueItems  []*issueItem  // table model (newest first)
+	issueData   []model.Issue // parallel to issueItems
 
 	rows                  [maxRows]ringRow
 	ifaceVal, wifiVal     *walk.Label
@@ -84,8 +96,6 @@ type ui struct {
 	fontScale  float64
 	scaled     []scaledLabel
 	scaleFonts []*walk.Font
-
-	lastIssueCount int
 
 	// cached GDI objects for the sparkline
 	smallFont                      *walk.Font
@@ -177,10 +187,26 @@ func Run(ctx context.Context, e *engine.Engine) error {
 				},
 			},
 
-			decl.Label{Text: "Issues — timestamped, with a process snapshot", TextColor: cSub, Font: hdrFont, Background: bgBrush,
-				ToolTipText: "Each time a problem is detected, it's logged here with the time and a 'ps'-style snapshot of the busiest processes — so you can see what was running when lag struck. Persists across sessions."},
-			decl.TextEdit{AssignTo: &u.issuesBox, ReadOnly: true, Background: panelBrush, TextColor: cText, Font: mono, VScroll: true,
-				MinSize: decl.Size{Width: 320, Height: 130}, StretchFactor: 1},
+			decl.Label{Text: "Events — click one to drill into what was degraded", TextColor: cSub, Font: hdrFont, Background: bgBrush,
+				ToolTipText: "Every detected problem is logged as an event. Select a row to see the exact metrics that were degraded, the system state, and a 'ps'-style snapshot of the busiest processes at that moment. Persists across sessions."},
+			decl.TableView{
+				AssignTo:            &u.issueTable,
+				Background:          panelBrush,
+				ColumnsSizable:      true,
+				LastColumnStretched: true,
+				MinSize:             decl.Size{Width: 320, Height: 120},
+				StretchFactor:       1,
+				Columns: []decl.TableViewColumn{
+					{Title: "Time", DataMember: "When", Width: 80},
+					{Title: "Severity", DataMember: "Severity", Width: 90},
+					{Title: "Where", DataMember: "Culprit", Width: 120},
+					{Title: "Issue", DataMember: "Issue", Width: 300},
+				},
+				OnCurrentIndexChanged: u.showIssueDetail,
+				StyleCell:             u.styleIssueCell,
+			},
+			decl.TextEdit{AssignTo: &u.issueDetail, ReadOnly: true, Background: panelBrush, TextColor: cText, Font: mono, VScroll: true,
+				MinSize: decl.Size{Width: 320, Height: 150}, StretchFactor: 1},
 
 			decl.Composite{
 				Background: bgBrush,
@@ -206,7 +232,9 @@ func Run(ctx context.Context, e *engine.Engine) error {
 	collectLabels(u.mw, &u.scaled)
 	u.mw.MouseWheel().Attach(u.onWheel)
 	u.spark.MouseWheel().Attach(u.onWheel)
-	u.issuesBox.MouseWheel().Attach(u.onWheel)
+	u.issueDetail.MouseWheel().Attach(u.onWheel)
+	u.issueTable.MouseWheel().Attach(u.onWheel)
+	u.issueDetail.SetText("Select an event above to see details.")
 
 	if err := u.setupTray(); err != nil {
 		return err
@@ -506,11 +534,10 @@ func (u *ui) render(s model.Snapshot) {
 		u.bbVal.SetTextColor(cSub)
 	}
 
-	// Issue log — only rebuild when the count changes (preserve scroll position).
+	// Event list — only rebuild when the count changes.
 	issues := u.eng.Issues()
-	if len(issues) != u.lastIssueCount {
-		u.lastIssueCount = len(issues)
-		u.issuesBox.SetText(formatIssues(issues))
+	if len(issues) != len(u.issueData) {
+		u.rebuildIssues(issues)
 	}
 
 	if v.Culprit != model.CulpritHealthy {
@@ -520,38 +547,89 @@ func (u *ui) render(s model.Snapshot) {
 	}
 }
 
-func formatIssues(issues []model.Issue) string {
-	if len(issues) == 0 {
-		return "No issues recorded yet — connection looking clean."
+// rebuildIssues refreshes the event TableView from the engine's issue log
+// (newest first) and keeps a parallel slice for detail lookup + cell styling.
+func (u *ui) rebuildIssues(issues []model.Issue) {
+	data := make([]model.Issue, 0, len(issues))
+	items := make([]*issueItem, 0, len(issues))
+	for i := len(issues) - 1; i >= 0; i-- { // newest first
+		is := issues[i]
+		data = append(data, is)
+		items = append(items, &issueItem{
+			When:     is.Time.Format("15:04:05"),
+			Severity: strings.ToUpper(is.Severity.String()),
+			Culprit:  is.Culprit.String(),
+			Issue:    is.Headline,
+		})
 	}
+	prev := u.issueTable.CurrentIndex()
+	u.issueData = data
+	u.issueItems = items
+	_ = u.issueTable.SetModel(items)
+	if len(items) == 0 {
+		u.issueDetail.SetText("No issues recorded yet — connection looking clean.")
+		return
+	}
+	idx := 0
+	if prev >= 0 && prev < len(items) {
+		idx = prev
+	}
+	_ = u.issueTable.SetCurrentIndex(idx)
+	u.showIssueDetail()
+}
+
+func (u *ui) showIssueDetail() {
+	idx := u.issueTable.CurrentIndex()
+	if idx < 0 || idx >= len(u.issueData) {
+		return
+	}
+	u.issueDetail.SetText(formatIssueDetail(u.issueData[idx]))
+}
+
+// styleIssueCell paints event rows on the dark panel and tints text by severity.
+func (u *ui) styleIssueCell(style *walk.CellStyle) {
+	style.BackgroundColor = cPanel
+	row := style.Row()
+	if row >= 0 && row < len(u.issueData) {
+		style.TextColor = severityColor(u.issueData[row].Severity)
+	} else {
+		style.TextColor = cText
+	}
+}
+
+func formatIssueDetail(is model.Issue) string {
 	const nl = "\r\n"
 	var b strings.Builder
-	start := 0
-	if len(issues) > 40 {
-		start = len(issues) - 40
+	m := is.Metrics
+	fmt.Fprintf(&b, "%s%s", is.Headline, nl)
+	fmt.Fprintf(&b, "Time:      %s%s", is.Time.Format("2006-01-02 15:04:05"), nl)
+	fmt.Fprintf(&b, "Severity:  %s        Where: %s%s", strings.ToUpper(is.Severity.String()), is.Culprit, nl)
+	if is.Detail != "" {
+		fmt.Fprintf(&b, "%sWhat we think happened:%s  %s%s", nl, nl, is.Detail, nl)
 	}
-	for i := len(issues) - 1; i >= start; i-- { // newest first
-		is := issues[i]
-		fmt.Fprintf(&b, "[%s] %s · %s — %s%s",
-			is.Time.Format("2006-01-02 15:04:05"), strings.ToUpper(is.Severity.String()), is.Culprit, is.Headline, nl)
-		m := is.Metrics
-		fmt.Fprintf(&b, "    degraded: net %s jitter %s loss %.1f%% · gw %s · ISP %s · DNS %s%s%s",
-			msStr(m.InternetMs), msStr(m.InternetJitterMs), m.InternetLossPct,
-			msStr(m.GatewayMs), msStr(m.ISPMs), msStr(m.DNSms), bloatStr(m.Bufferbloat), nl)
-		fmt.Fprintf(&b, "    system:   CPU %.0f%% · Mem %.0f%% (%.1f/%.1f GB) · GPU %s%s%s",
-			m.CPUPct, m.MemPct, m.MemUsedGB, m.MemTotalGB, gpuStr(m.GPUPct), wifiStr(m), nl)
-		if len(is.Procs) > 0 {
-			b.WriteString("    top:      ")
-			for j, p := range is.Procs {
-				if j >= 5 {
-					break
-				}
-				if j > 0 {
-					b.WriteString(" · ")
-				}
-				fmt.Fprintf(&b, "%s %.0f%% %.0fMB", p.Name, p.CPU, p.MemMB)
-			}
-			b.WriteString(nl)
+	if is.Fix != "" {
+		fmt.Fprintf(&b, "Suggested fix:%s  %s%s", nl, is.Fix, nl)
+	}
+
+	fmt.Fprintf(&b, "%sDegraded metrics:%s", nl, nl)
+	fmt.Fprintf(&b, "  Internet    %-9s jitter %-9s loss %.1f%%%s", msStr(m.InternetMs), msStr(m.InternetJitterMs), m.InternetLossPct, nl)
+	fmt.Fprintf(&b, "  Gateway     %s%s", msStr(m.GatewayMs), nl)
+	fmt.Fprintf(&b, "  ISP hop     %s%s", msStr(m.ISPMs), nl)
+	fmt.Fprintf(&b, "  DNS         %s%s", msStr(m.DNSms), nl)
+	if m.Bufferbloat != "" {
+		fmt.Fprintf(&b, "  Bufferbloat %s%s", m.Bufferbloat, nl)
+	}
+
+	fmt.Fprintf(&b, "%sSystem at the time:%s", nl, nl)
+	fmt.Fprintf(&b, "  CPU %.0f%%   Mem %.0f%% (%.1f/%.1f GB)   GPU %s%s", m.CPUPct, m.MemPct, m.MemUsedGB, m.MemTotalGB, gpuStr(m.GPUPct), nl)
+	if m.OnWiFi {
+		fmt.Fprintf(&b, "  Wi-Fi %d dBm%s", m.RSSI, nl)
+	}
+
+	if len(is.Procs) > 0 {
+		fmt.Fprintf(&b, "%sTop processes (ps snapshot):%s", nl, nl)
+		for _, p := range is.Procs {
+			fmt.Fprintf(&b, "  %-26s %5.0f%%  %7.0f MB%s", trunc(p.Name, 26), p.CPU, p.MemMB, nl)
 		}
 	}
 	return b.String()
