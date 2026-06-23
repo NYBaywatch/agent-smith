@@ -6,6 +6,15 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Dark theme** for the GUI dashboard (Catppuccin Mocha palette).
+- **Session RTT history sparkline** — a live chart of ping over time for the
+  gateway, ISP hop, and internet rings (in-memory, current session only).
+- **Mouse-over tooltips on every metric**, explaining what each value means and
+  what's good/bad for gaming.
+- Per-metric color coding (latency/jitter/loss/RSSI/bufferbloat grade) and an
+  at-a-glance status pill.
+
 ## [0.1.0] — 2026-06-23
 
 First public release: a working, gamer-focused connection-quality monitor for
