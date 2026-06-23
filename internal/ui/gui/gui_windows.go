@@ -3,19 +3,21 @@
 // Package gui implements the native Windows interface for Agent Smith using
 // lxn/walk: a dark dashboard window plus a system-tray icon. It shows the live
 // verdict, a session RTT history sparkline, the concentric-ring path metrics,
-// local diagnostics, and an on-demand bufferbloat test. Every value carries a
-// mouse-over tooltip explaining what it means. Closing the window hides it to
-// the tray; quitting is done from the tray menu.
+// local diagnostics, and a timestamped issue log with process snapshots. Every
+// value carries a mouse-over tooltip; Ctrl+mouse-wheel adjusts the font size.
+// Closing the window hides it to the tray; quitting is done from the tray menu.
 package gui
 
 import (
 	"context"
 	"fmt"
-	"runtime"
+	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/lxn/walk"
 	decl "github.com/lxn/walk/declarative"
+	"golang.org/x/sys/windows"
 
 	"github.com/NYBaywatch/agent-smith/internal/bufferbloat"
 	"github.com/NYBaywatch/agent-smith/internal/engine"
@@ -43,12 +45,20 @@ var (
 )
 
 const (
-	maxRows = 4   // gateway, ISP hop, 2 internet anchors
-	capHist = 300 // session history points (~5 min at 1/s)
+	maxRows   = 4      // gateway, ISP hop, 2 internet anchors
+	mkControl = 0x0008 // WM_MOUSEWHEEL wParam low-word flag for the Ctrl key
 )
 
 type ringRow struct {
 	ring, target, avg, p95, jitter, loss *walk.Label
+}
+
+// scaledLabel remembers a label's base font so Ctrl+wheel can rescale all text.
+type scaledLabel struct {
+	lbl    *walk.Label
+	family string
+	base   int
+	bold   bool
 }
 
 type ui struct {
@@ -62,34 +72,36 @@ type ui struct {
 	detail     *walk.Label
 	fix        *walk.Label
 	spark      *walk.CustomWidget
+	issuesBox  *walk.TextEdit
 
-	rows                            [maxRows]ringRow
-	ifaceVal, wifiVal               *walk.Label
-	resVal, dnsVal, bbVal           *walk.Label
-	bbButton                        *walk.PushButton
-	bbStatus                        *walk.Label
+	rows                  [maxRows]ringRow
+	ifaceVal, wifiVal     *walk.Label
+	resVal, dnsVal, bbVal *walk.Label
+	bbButton              *walk.PushButton
+	bbStatus              *walk.Label
 
-	// session history (carry-forward filled) and last-known values
-	histNet, histGw, histIsp        []float64
-	lastNet, lastGw, lastIsp        float64
+	// font scaling
+	fontScale  float64
+	scaled     []scaledLabel
+	scaleFonts []*walk.Font
+
+	lastIssueCount int
 
 	// cached GDI objects for the sparkline
-	smallFont                       *walk.Font
-	brushPanel                      *walk.SolidColorBrush
-	penGrid, penNet, penGw, penIsp  *walk.CosmeticPen
+	smallFont                      *walk.Font
+	brushPanel                     *walk.SolidColorBrush
+	penGrid, penNet, penGw, penIsp *walk.CosmeticPen
 
 	bbRunning bool
 }
 
 // Run builds and runs the GUI, blocking until the user quits or ctx is cancelled.
 func Run(ctx context.Context, e *engine.Engine) error {
-	runtime.LockOSThread()
-	u := &ui{eng: e, ctx: ctx}
+	u := &ui{eng: e, ctx: ctx, fontScale: 1.0}
 
 	mono := decl.Font{Family: "Consolas", PointSize: 10}
 	hdrFont := decl.Font{Family: "Segoe UI", PointSize: 9, Bold: true}
 
-	// Build the ring table children (header + maxRows data rows).
 	ringCols := []struct{ name, tip string }{
 		{"Ring", "Which segment of the path this row measures: LAN gateway, the first ISP hop, then public internet anchors."},
 		{"Target", "The host being pinged to represent this segment of the path."},
@@ -117,11 +129,10 @@ func Run(ctx context.Context, e *engine.Engine) error {
 		AssignTo:   &u.mw,
 		Title:      "Agent Smith — connection monitor for gamers",
 		Background: bgBrush,
-		MinSize:    decl.Size{Width: 720, Height: 660},
-		Size:       decl.Size{Width: 740, Height: 700},
-		Layout:     decl.VBox{MarginsZero: false, Margins: decl.Margins{Left: 12, Top: 10, Right: 12, Bottom: 10}, Spacing: 8},
+		MinSize:    decl.Size{Width: 740, Height: 760},
+		Size:       decl.Size{Width: 760, Height: 860},
+		Layout:     decl.VBox{Margins: decl.Margins{Left: 12, Top: 10, Right: 12, Bottom: 10}, Spacing: 8},
 		Children: []decl.Widget{
-			// Header row: title + status pill.
 			decl.Composite{
 				Background: bgBrush,
 				Layout:     decl.HBox{MarginsZero: true},
@@ -134,31 +145,19 @@ func Run(ctx context.Context, e *engine.Engine) error {
 			},
 			decl.Label{AssignTo: &u.verdict, Text: "Starting Agent Smith…", TextColor: cText, Font: decl.Font{Family: "Segoe UI", PointSize: 12, Bold: true}, Background: bgBrush,
 				ToolTipText: "The headline conclusion: what, if anything, is most likely degrading your connection."},
-			decl.Label{AssignTo: &u.detail, Text: "", TextColor: cSub, Background: bgBrush, MaxSize: decl.Size{Width: 700}},
-			decl.Label{AssignTo: &u.fix, Text: "", TextColor: cYellow, Background: bgBrush, MaxSize: decl.Size{Width: 700},
+			decl.Label{AssignTo: &u.detail, Text: "", TextColor: cSub, Background: bgBrush, MaxSize: decl.Size{Width: 720}},
+			decl.Label{AssignTo: &u.fix, Text: "", TextColor: cYellow, Background: bgBrush, MaxSize: decl.Size{Width: 720},
 				ToolTipText: "The recommended action to fix the detected problem."},
 
-			// History sparkline.
-			decl.Label{Text: "RTT — this session", TextColor: cSub, Font: hdrFont, Background: bgBrush,
-				ToolTipText: "Ping over time since launch. Blue = Internet, green = LAN/gateway, purple = ISP hop. Flat & low is best; spikes are lag."},
-			decl.CustomWidget{
-				AssignTo:    &u.spark,
-				MinSize:     decl.Size{Width: 320, Height: 150},
-				StretchFactor: 1,
-				PaintPixels: u.paintSpark,
-				ToolTipText: "Ping over time. Blue = Internet, green = LAN/gateway, purple = ISP hop.",
-			},
+			decl.Label{Text: "RTT — history (persists across sessions)", TextColor: cSub, Font: hdrFont, Background: bgBrush,
+				ToolTipText: "Ping over time. Blue = Internet, green = LAN/gateway, purple = ISP hop. Flat & low is best; spikes are lag. Tip: Ctrl + mouse-wheel resizes the text."},
+			decl.CustomWidget{AssignTo: &u.spark, MinSize: decl.Size{Width: 320, Height: 140}, StretchFactor: 2, PaintPixels: u.paintSpark,
+				ToolTipText: "Ping over time. Blue = Internet, green = LAN/gateway, purple = ISP hop."},
 
-			// Path rings table.
 			decl.Label{Text: "Path — concentric rings (LAN → ISP edge → internet)", TextColor: cSub, Font: hdrFont, Background: bgBrush,
 				ToolTipText: "Each ring is pinged separately. A problem that starts at one ring and persists outward is introduced there — that's how the culprit is localized."},
-			decl.Composite{
-				Background: panelBrush,
-				Layout:     decl.Grid{Columns: 6, Spacing: 6, Margins: decl.Margins{Left: 10, Top: 8, Right: 10, Bottom: 8}},
-				Children:   ringChildren,
-			},
+			decl.Composite{Background: panelBrush, Layout: decl.Grid{Columns: 6, Spacing: 6, Margins: decl.Margins{Left: 10, Top: 8, Right: 10, Bottom: 8}}, Children: ringChildren},
 
-			// Local diagnostics.
 			decl.Label{Text: "Local", TextColor: cSub, Font: hdrFont, Background: bgBrush,
 				ToolTipText: "Signals from your own PC and link that can masquerade as a network problem."},
 			decl.Composite{
@@ -169,7 +168,7 @@ func Run(ctx context.Context, e *engine.Engine) error {
 					cell(&u.ifaceVal, cText, mono),
 					name("Wi-Fi", "Wireless signal: RSSI in dBm (closer to 0 is stronger; better than −67 dBm is good for gaming), link rate and SSID. Wi-Fi adds jitter — Ethernet is best."),
 					cell(&u.wifiVal, cText, mono),
-					name("Resources", "Local CPU and memory load plus current network throughput. Sustained high CPU or a saturating download/upload can feel exactly like network lag."),
+					name("Resources", "Local CPU and memory load plus current network throughput. Sustained high CPU or a saturating transfer can feel exactly like network lag."),
 					cell(&u.resVal, cText, mono),
 					name("DNS", "Average time to resolve domain names. Over ~100 ms makes launching games and matchmaking feel sluggish — try a faster resolver like 1.1.1.1."),
 					cell(&u.dnsVal, cText, mono),
@@ -178,7 +177,11 @@ func Run(ctx context.Context, e *engine.Engine) error {
 				},
 			},
 
-			// Actions.
+			decl.Label{Text: "Issues — timestamped, with a process snapshot", TextColor: cSub, Font: hdrFont, Background: bgBrush,
+				ToolTipText: "Each time a problem is detected, it's logged here with the time and a 'ps'-style snapshot of the busiest processes — so you can see what was running when lag struck. Persists across sessions."},
+			decl.TextEdit{AssignTo: &u.issuesBox, ReadOnly: true, Background: panelBrush, TextColor: cText, Font: mono, VScroll: true,
+				MinSize: decl.Size{Width: 320, Height: 130}, StretchFactor: 1},
+
 			decl.Composite{
 				Background: bgBrush,
 				Layout:     decl.HBox{MarginsZero: true},
@@ -197,6 +200,13 @@ func Run(ctx context.Context, e *engine.Engine) error {
 
 	u.initGDI()
 	defer u.disposeGDI()
+	enableDarkTitleBar(uintptr(u.mw.Handle()))
+
+	// Record base fonts for Ctrl+wheel scaling, and wire the wheel handler.
+	collectLabels(u.mw, &u.scaled)
+	u.mw.MouseWheel().Attach(u.onWheel)
+	u.spark.MouseWheel().Attach(u.onWheel)
+	u.issuesBox.MouseWheel().Attach(u.onWheel)
 
 	if err := u.setupTray(); err != nil {
 		return err
@@ -204,7 +214,7 @@ func Run(ctx context.Context, e *engine.Engine) error {
 	defer u.tray.Dispose()
 
 	u.mw.Closing().Attach(func(canceled *bool, reason walk.CloseReason) {
-		if reason == walk.CloseReasonUnknown { // user pressed the X
+		if reason == walk.CloseReasonUnknown {
 			*canceled = true
 			u.mw.Hide()
 			u.tray.ShowInfo("Agent Smith", "Still watching your connection in the tray.")
@@ -230,6 +240,98 @@ func name(text, tip string) decl.Label {
 	return decl.Label{Text: text, ToolTipText: tip, TextColor: cSub, Font: decl.Font{Family: "Segoe UI", PointSize: 9, Bold: true}, Background: panelBrush}
 }
 
+// --- dark title bar (DWM) ---
+
+var (
+	dwmapi         = windows.NewLazySystemDLL("dwmapi.dll")
+	procDwmSetAttr = dwmapi.NewProc("DwmSetWindowAttribute")
+)
+
+func enableDarkTitleBar(hwnd uintptr) {
+	if hwnd == 0 || procDwmSetAttr.Find() != nil {
+		return
+	}
+	var on int32 = 1
+	// DWMWA_USE_IMMERSIVE_DARK_MODE: 20 on Win10 20H1+/Win11, 19 on earlier builds.
+	for _, attr := range []uintptr{20, 19} {
+		if r, _, _ := procDwmSetAttr.Call(hwnd, attr, uintptr(unsafe.Pointer(&on)), unsafe.Sizeof(on)); r == 0 {
+			return
+		}
+	}
+}
+
+// --- font scaling ---
+
+func collectLabels(c walk.Container, out *[]scaledLabel) {
+	ch := c.Children()
+	if ch == nil {
+		return
+	}
+	for i := 0; i < ch.Len(); i++ {
+		w := ch.At(i)
+		if lbl, ok := w.(*walk.Label); ok {
+			if f := lbl.Font(); f != nil {
+				*out = append(*out, scaledLabel{lbl: lbl, family: f.Family(), base: f.PointSize(), bold: f.Style()&walk.FontBold != 0})
+			}
+		}
+		if cont, ok := w.(walk.Container); ok {
+			collectLabels(cont, out)
+		}
+	}
+}
+
+func (u *ui) onWheel(x, y int, button walk.MouseButton) {
+	w := uint32(button)
+	if w&mkControl == 0 {
+		return // only Ctrl+wheel adjusts the font
+	}
+	delta := int16(w >> 16)
+	if delta == 0 {
+		return
+	}
+	if delta > 0 {
+		u.fontScale *= 1.1
+	} else {
+		u.fontScale /= 1.1
+	}
+	if u.fontScale < 0.7 {
+		u.fontScale = 0.7
+	}
+	if u.fontScale > 2.2 {
+		u.fontScale = 2.2
+	}
+	u.applyFontScale()
+}
+
+func (u *ui) applyFontScale() {
+	cache := map[string]*walk.Font{}
+	for _, s := range u.scaled {
+		size := int(float64(s.base)*u.fontScale + 0.5)
+		if size < 6 {
+			size = 6
+		}
+		if size > 48 {
+			size = 48
+		}
+		var style walk.FontStyle
+		if s.bold {
+			style = walk.FontBold
+		}
+		key := fmt.Sprintf("%s|%d|%d", s.family, size, style)
+		f := cache[key]
+		if f == nil {
+			nf, err := walk.NewFont(s.family, size, style)
+			if err != nil {
+				continue
+			}
+			f = nf
+			cache[key] = f
+			u.scaleFonts = append(u.scaleFonts, f)
+		}
+		s.lbl.SetFont(f)
+	}
+}
+
 func (u *ui) initGDI() {
 	u.smallFont, _ = walk.NewFont("Segoe UI", 8, 0)
 	u.brushPanel, _ = walk.NewSolidColorBrush(cPanel)
@@ -240,7 +342,11 @@ func (u *ui) initGDI() {
 }
 
 func (u *ui) disposeGDI() {
-	for _, d := range []interface{ Dispose() }{u.smallFont, u.brushPanel, u.penGrid, u.penNet, u.penGw, u.penIsp} {
+	objs := []interface{ Dispose() }{u.smallFont, u.brushPanel, u.penGrid, u.penNet, u.penGw, u.penIsp}
+	for _, f := range u.scaleFonts {
+		objs = append(objs, f)
+	}
+	for _, d := range objs {
 		if d != nil {
 			d.Dispose()
 		}
@@ -332,7 +438,6 @@ func (u *ui) render(s model.Snapshot) {
 		u.fix.SetText("")
 	}
 
-	// Rings.
 	type rr struct {
 		ring string
 		ts   *model.TargetStats
@@ -356,20 +461,16 @@ func (u *ui) render(s model.Snapshot) {
 		}
 	}
 
-	// Session history → sparkline.
-	pushHist(bestMs(s), &u.histNet, &u.lastNet)
-	pushHist(aliveMs(s.Gateway), &u.histGw, &u.lastGw)
-	pushHist(aliveMs(s.ISPHop), &u.histIsp, &u.lastIsp)
 	u.spark.Invalidate()
 
-	// Local diagnostics.
 	if s.Net != nil && s.Net.Active != nil {
 		a := s.Net.Active
-		u.ifaceVal.SetText(fmt.Sprintf("%s · %s · %d Mbps · MTU %d", a.Name, a.Media, a.LinkMbps, a.MTU))
+		txt := fmt.Sprintf("%s · %s · %d Mbps · MTU %d", a.Name, a.Media, a.LinkMbps, a.MTU)
 		if errs := a.InErrors + a.OutErrors + a.InDiscards + a.OutDiscards; errs > 0 {
-			u.ifaceVal.SetText(u.ifaceVal.Text() + fmt.Sprintf("  ⚠ %d errors", errs))
+			u.ifaceVal.SetText(txt + fmt.Sprintf("  ⚠ %d errors", errs))
 			u.ifaceVal.SetTextColor(cYellow)
 		} else {
+			u.ifaceVal.SetText(txt)
 			u.ifaceVal.SetTextColor(cText)
 		}
 	} else {
@@ -404,11 +505,49 @@ func (u *ui) render(s model.Snapshot) {
 		u.bbVal.SetTextColor(cSub)
 	}
 
+	// Issue log — only rebuild when the count changes (preserve scroll position).
+	issues := u.eng.Issues()
+	if len(issues) != u.lastIssueCount {
+		u.lastIssueCount = len(issues)
+		u.issuesBox.SetText(formatIssues(issues))
+	}
+
 	if v.Culprit != model.CulpritHealthy {
 		u.tray.SetToolTip(fmt.Sprintf("Agent Smith — %s: %s", v.Severity, v.Culprit))
 	} else {
 		u.tray.SetToolTip("Agent Smith — connection healthy")
 	}
+}
+
+func formatIssues(issues []model.Issue) string {
+	if len(issues) == 0 {
+		return "No issues recorded yet — connection looking clean."
+	}
+	const nl = "\r\n"
+	var b strings.Builder
+	start := 0
+	if len(issues) > 40 {
+		start = len(issues) - 40
+	}
+	for i := len(issues) - 1; i >= start; i-- { // newest first
+		is := issues[i]
+		fmt.Fprintf(&b, "[%s] %s · %s — %s%s",
+			is.Time.Format("2006-01-02 15:04:05"), strings.ToUpper(is.Severity.String()), is.Culprit, is.Headline, nl)
+		if len(is.Procs) > 0 {
+			b.WriteString("    top: ")
+			for j, p := range is.Procs {
+				if j >= 5 {
+					break
+				}
+				if j > 0 {
+					b.WriteString(" · ")
+				}
+				fmt.Fprintf(&b, "%s %.0f%% %.0fMB", p.Name, p.CPU, p.MemMB)
+			}
+			b.WriteString(nl)
+		}
+	}
+	return b.String()
 }
 
 func (u *ui) fillRow(r ringRow, ring string, ts *model.TargetStats) {
@@ -442,7 +581,7 @@ func (u *ui) blankRow(r ringRow, ring, target string) {
 	}
 }
 
-// paintSpark draws the session RTT history.
+// paintSpark draws the persisted RTT history (read from the engine).
 func (u *ui) paintSpark(canvas *walk.Canvas, _ walk.Rectangle) error {
 	if u.brushPanel == nil {
 		return nil
@@ -451,8 +590,27 @@ func (u *ui) paintSpark(canvas *walk.Canvas, _ walk.Rectangle) error {
 	W, H := cb.Width, cb.Height
 	canvas.FillRectanglePixels(u.brushPanel, walk.Rectangle{X: 0, Y: 0, Width: W, Height: H})
 
+	hist := u.eng.History()
+	if len(hist) > 1200 {
+		hist = hist[len(hist)-1200:]
+	}
+	extract := func(sel func(model.HistPoint) float64) []float64 {
+		out := make([]float64, len(hist))
+		last := 0.0
+		for i, hp := range hist {
+			if v := sel(hp); v > 0 {
+				last = v
+			}
+			out[i] = last
+		}
+		return out
+	}
+	gw := extract(func(h model.HistPoint) float64 { return h.GwMs })
+	isp := extract(func(h model.HistPoint) float64 { return h.IspMs })
+	net := extract(func(h model.HistPoint) float64 { return h.NetMs })
+
 	max := 20.0
-	for _, s := range [][]float64{u.histNet, u.histGw, u.histIsp} {
+	for _, s := range [][]float64{gw, isp, net} {
 		for _, v := range s {
 			if v > max {
 				max = v
@@ -467,7 +625,6 @@ func (u *ui) paintSpark(canvas *walk.Canvas, _ walk.Rectangle) error {
 		return nil
 	}
 
-	// Horizontal gridlines with scale labels.
 	for _, f := range []float64{0, 0.5, 1} {
 		y := pad + int(float64(plotH)*f)
 		canvas.DrawLinePixels(u.penGrid, walk.Point{X: pad, Y: y}, walk.Point{X: pad + plotW, Y: y})
@@ -496,9 +653,9 @@ func (u *ui) paintSpark(canvas *walk.Canvas, _ walk.Rectangle) error {
 		}
 		canvas.DrawPolylinePixels(pen, pts)
 	}
-	draw(u.histGw, u.penGw)
-	draw(u.histIsp, u.penIsp)
-	draw(u.histNet, u.penNet)
+	draw(gw, u.penGw)
+	draw(isp, u.penIsp)
+	draw(net, u.penNet)
 
 	if u.smallFont != nil {
 		y := H - legendH + 2
@@ -508,40 +665,6 @@ func (u *ui) paintSpark(canvas *walk.Canvas, _ walk.Rectangle) error {
 	}
 	return nil
 }
-
-func pushHist(v float64, dst *[]float64, last *float64) {
-	if v > 0 {
-		*last = v
-	}
-	*dst = append(*dst, *last)
-	if len(*dst) > capHist {
-		*dst = (*dst)[1:]
-	}
-}
-
-func bestMs(s model.Snapshot) float64 {
-	best := 0.0
-	for i := range s.Internet {
-		ts := s.Internet[i]
-		if !ts.Alive {
-			continue
-		}
-		m := msf(ts.Stats.Mean)
-		if best == 0 || m < best {
-			best = m
-		}
-	}
-	return best
-}
-
-func aliveMs(ts *model.TargetStats) float64 {
-	if ts == nil || !ts.Alive {
-		return 0
-	}
-	return msf(ts.Stats.Mean)
-}
-
-func msf(d time.Duration) float64 { return float64(d) / float64(time.Millisecond) }
 
 func badge(s model.Severity) string {
 	switch s {

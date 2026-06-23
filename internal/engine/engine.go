@@ -7,6 +7,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -18,7 +19,14 @@ import (
 	"github.com/NYBaywatch/agent-smith/internal/model"
 	"github.com/NYBaywatch/agent-smith/internal/netinfo"
 	"github.com/NYBaywatch/agent-smith/internal/probe"
+	"github.com/NYBaywatch/agent-smith/internal/store"
 	"github.com/NYBaywatch/agent-smith/internal/sysinfo"
+)
+
+// Retention caps for persisted state.
+const (
+	histCap  = 3600 // ~1 hour of RTT history at 1/s
+	issueCap = 200  // most recent recorded issues
 )
 
 // Target is a host to probe and the path role it represents.
@@ -61,15 +69,21 @@ type Engine struct {
 	pinger probe.Pinger
 	sys    *sysinfo.Collector
 
-	mu       sync.RWMutex
-	windows  map[string]*metrics.Window // keyed by host
-	gateway  *Target
-	ispHop   *Target
-	netInfo  *netinfo.Info
-	dns      dnsprobe.Result
-	lastBB   *bufferbloat.Result
+	mu      sync.RWMutex
+	windows map[string]*metrics.Window // keyed by host
+	gateway *Target
+	ispHop  *Target
+	netInfo *netinfo.Info
+	dns     dnsprobe.Result
+	lastBB  *bufferbloat.Result
 	latest  model.Snapshot
 	subs    []chan model.Snapshot
+
+	// session history + issue log (persisted)
+	history      []model.HistPoint
+	issues       []model.Issue
+	lastIssueKey string
+	lastIssueAt  time.Time
 }
 
 // New constructs an Engine with the given config.
@@ -78,12 +92,18 @@ func New(cfg Config) (*Engine, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Engine{
+	e := &Engine{
 		cfg:     cfg,
 		pinger:  p,
 		sys:     sysinfo.NewCollector(),
 		windows: make(map[string]*metrics.Window),
-	}, nil
+	}
+	// Restore persisted history + issues (best effort).
+	if st, err := store.Load(); err == nil {
+		e.history = st.History
+		e.issues = st.Issues
+	}
+	return e, nil
 }
 
 // Pinger exposes the underlying pinger (used for on-demand bufferbloat tests).
@@ -115,13 +135,15 @@ func (e *Engine) Run(ctx context.Context) error {
 	e.refreshDNS(ctx)
 
 	var wg sync.WaitGroup
-	wg.Add(3)
+	wg.Add(4)
 	go func() { defer wg.Done(); e.probeLoop(ctx) }()
 	go func() { defer wg.Done(); e.periodic(ctx, e.cfg.TopologyInterval, e.refreshTopology) }()
 	go func() { defer wg.Done(); e.periodic(ctx, e.cfg.DNSInterval, e.refreshDNS) }()
+	go func() { defer wg.Done(); e.periodic(ctx, 30*time.Second, func(context.Context) { e.save() }) }()
 
 	<-ctx.Done()
 	wg.Wait()
+	e.save() // flush on shutdown
 	return ctx.Err()
 }
 
@@ -183,6 +205,122 @@ func (e *Engine) tick(ctx context.Context) {
 	snap := e.buildSnapshot(sys)
 	snap.Verdict = classifier.Classify(snap)
 	e.publish(snap)
+	e.recordHistory(snap)
+	e.maybeRecordIssue(ctx, snap)
+}
+
+// recordHistory appends a sampled RTT point for the sparkline / persistence.
+func (e *Engine) recordHistory(snap model.Snapshot) {
+	hp := model.HistPoint{
+		T:     snap.Time,
+		GwMs:  rttMs(snap.Gateway),
+		IspMs: rttMs(snap.ISPHop),
+		NetMs: bestInternetMs(snap),
+	}
+	e.mu.Lock()
+	e.history = append(e.history, hp)
+	if len(e.history) > histCap {
+		e.history = e.history[len(e.history)-histCap:]
+	}
+	e.mu.Unlock()
+}
+
+// maybeRecordIssue logs a new issue when the verdict transitions into (or between)
+// unhealthy states, capturing a process snapshot asynchronously so the probe loop
+// is never blocked by process enumeration.
+func (e *Engine) maybeRecordIssue(ctx context.Context, snap model.Snapshot) {
+	v := snap.Verdict
+	unhealthy := v.Severity >= model.SevDegraded
+	key := fmt.Sprintf("%d/%d", v.Severity, v.Culprit)
+
+	e.mu.Lock()
+	prev := e.lastIssueKey
+	if unhealthy {
+		e.lastIssueKey = key
+	} else {
+		e.lastIssueKey = "ok"
+	}
+	since := snap.Time.Sub(e.lastIssueAt)
+	shouldLog := unhealthy && key != prev && since >= 8*time.Second
+	if shouldLog {
+		e.lastIssueAt = snap.Time
+	}
+	e.mu.Unlock()
+
+	if !shouldLog {
+		return
+	}
+	at := snap.Time
+	go func() {
+		var procs []model.ProcInfo
+		if top, err := sysinfo.TopCPUProcesses(ctx, 6); err == nil {
+			for _, p := range top {
+				procs = append(procs, model.ProcInfo{PID: p.PID, Name: p.Name, CPU: p.CPU, MemMB: p.MemMB})
+			}
+		}
+		iss := model.Issue{
+			Time: at, Severity: v.Severity, Culprit: v.Culprit,
+			Headline: v.Headline, Detail: v.Detail, Fix: v.Fix, Procs: procs,
+		}
+		e.mu.Lock()
+		e.issues = append(e.issues, iss)
+		if len(e.issues) > issueCap {
+			e.issues = e.issues[len(e.issues)-issueCap:]
+		}
+		e.mu.Unlock()
+		e.save()
+	}()
+}
+
+// History returns a copy of the recorded RTT history.
+func (e *Engine) History() []model.HistPoint {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	out := make([]model.HistPoint, len(e.history))
+	copy(out, e.history)
+	return out
+}
+
+// Issues returns a copy of the recorded issue log (oldest first).
+func (e *Engine) Issues() []model.Issue {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	out := make([]model.Issue, len(e.issues))
+	copy(out, e.issues)
+	return out
+}
+
+// save persists current history + issues (best effort).
+func (e *Engine) save() {
+	e.mu.RLock()
+	st := store.State{
+		History: append([]model.HistPoint(nil), e.history...),
+		Issues:  append([]model.Issue(nil), e.issues...),
+	}
+	e.mu.RUnlock()
+	_ = store.Save(st)
+}
+
+func rttMs(ts *model.TargetStats) float64 {
+	if ts == nil || !ts.Alive {
+		return 0
+	}
+	return float64(ts.Stats.Mean) / float64(time.Millisecond)
+}
+
+func bestInternetMs(snap model.Snapshot) float64 {
+	best := 0.0
+	for i := range snap.Internet {
+		ts := snap.Internet[i]
+		if !ts.Alive {
+			continue
+		}
+		m := float64(ts.Stats.Mean) / float64(time.Millisecond)
+		if best == 0 || m < best {
+			best = m
+		}
+	}
+	return best
 }
 
 func (e *Engine) currentTargets() []Target {

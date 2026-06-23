@@ -24,11 +24,12 @@ type Stats struct {
 	OutMbps    float64 // aggregate sent throughput since last sample
 }
 
-// ProcCPU identifies a process and its CPU usage.
+// ProcCPU identifies a process and its resource usage.
 type ProcCPU struct {
-	PID  int32
-	Name string
-	CPU  float64 // percent
+	PID   int32
+	Name  string
+	CPU   float64 // percent
+	MemMB float64 // resident memory in MB
 }
 
 // Collector holds the state needed to compute throughput rates between samples.
@@ -95,7 +96,11 @@ func TopCPUProcesses(ctx context.Context, n int) ([]ProcCPU, error) {
 			continue
 		}
 		name, _ := p.Name()
-		out = append(out, ProcCPU{PID: p.Pid, Name: name, CPU: cp})
+		var memMB float64
+		if mi, err := p.MemoryInfo(); err == nil && mi != nil {
+			memMB = float64(mi.RSS) / (1024 * 1024)
+		}
+		out = append(out, ProcCPU{PID: p.Pid, Name: name, CPU: cp, MemMB: memMB})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CPU > out[j].CPU })
 	if len(out) > n {

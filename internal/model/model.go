@@ -125,3 +125,31 @@ type Verdict struct {
 	Detail     string  // supporting explanation
 	Fix        string  // recommended remediation
 }
+
+// ProcInfo is a single process captured in an issue's snapshot (like `ps`).
+type ProcInfo struct {
+	PID   int32   `json:"pid"`
+	Name  string  `json:"name"`
+	CPU   float64 `json:"cpu"` // percent
+	MemMB float64 `json:"mem_mb"`
+}
+
+// Issue is a recorded degradation event: a timestamped verdict plus a snapshot
+// of the top processes running at that moment (to help correlate lag with apps).
+type Issue struct {
+	Time     time.Time  `json:"time"`
+	Severity Severity   `json:"severity"`
+	Culprit  Culprit    `json:"culprit"`
+	Headline string     `json:"headline"`
+	Detail   string     `json:"detail"`
+	Fix      string     `json:"fix"`
+	Procs    []ProcInfo `json:"procs"`
+}
+
+// HistPoint is one sampled moment of RTT history for the sparkline / persistence.
+type HistPoint struct {
+	T     time.Time `json:"t"`
+	GwMs  float64   `json:"gw_ms"`  // gateway RTT in ms (0 = no data)
+	IspMs float64   `json:"isp_ms"` // ISP-hop RTT in ms
+	NetMs float64   `json:"net_ms"` // best internet anchor RTT in ms
+}
