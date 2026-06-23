@@ -1,0 +1,127 @@
+// Package model holds the shared data types exchanged between the engine, the
+// bottleneck classifier, and the user interfaces. Keeping them here avoids an
+// import cycle (engine → classifier → model ← ui).
+package model
+
+import (
+	"time"
+
+	"github.com/NYBaywatch/agent-smith/internal/bufferbloat"
+	"github.com/NYBaywatch/agent-smith/internal/dnsprobe"
+	"github.com/NYBaywatch/agent-smith/internal/metrics"
+	"github.com/NYBaywatch/agent-smith/internal/netinfo"
+	"github.com/NYBaywatch/agent-smith/internal/sysinfo"
+)
+
+// TargetStats is the rolling statistics for one probed target.
+type TargetStats struct {
+	Name  string // display name, e.g. "Gateway", "Cloudflare"
+	Host  string // IP/host probed
+	Role  Role   // ring this target represents
+	Stats metrics.Stats
+	Alive bool // received at least one reply in the current window
+}
+
+// Role identifies which ring of the path a target represents.
+type Role int
+
+const (
+	RoleGateway  Role = iota // LAN / router
+	RoleISPHop               // first public hop (ISP access edge)
+	RoleInternet             // public anchor (1.1.1.1, 8.8.8.8, game server)
+)
+
+func (r Role) String() string {
+	switch r {
+	case RoleGateway:
+		return "Gateway"
+	case RoleISPHop:
+		return "ISP hop"
+	default:
+		return "Internet"
+	}
+}
+
+// Snapshot is a complete point-in-time view of connection health, produced by
+// the engine on every tick and consumed by the classifier and the UIs.
+type Snapshot struct {
+	Time        time.Time
+	Gateway     *TargetStats
+	ISPHop      *TargetStats
+	Internet    []TargetStats
+	Net         *netinfo.Info
+	Sys         sysinfo.Stats
+	DNS         dnsprobe.Result
+	Bufferbloat *bufferbloat.Result // last on-demand test, nil until run
+	Verdict     Verdict
+}
+
+// Culprit is the segment most likely responsible for degradation.
+type Culprit int
+
+const (
+	CulpritHealthy Culprit = iota
+	CulpritLocalMachine
+	CulpritWiFi
+	CulpritLANRouter
+	CulpritISPAccess
+	CulpritUpstream
+	CulpritDNS
+	CulpritUnknown
+)
+
+func (c Culprit) String() string {
+	switch c {
+	case CulpritHealthy:
+		return "Healthy"
+	case CulpritLocalMachine:
+		return "Local machine"
+	case CulpritWiFi:
+		return "Wi-Fi"
+	case CulpritLANRouter:
+		return "LAN / router"
+	case CulpritISPAccess:
+		return "ISP access link"
+	case CulpritUpstream:
+		return "Upstream internet"
+	case CulpritDNS:
+		return "DNS"
+	default:
+		return "Unknown"
+	}
+}
+
+// Severity ranks how bad the current state is, for UI coloring/alerts.
+type Severity int
+
+const (
+	SevOK Severity = iota
+	SevWatch
+	SevDegraded
+	SevCritical
+)
+
+func (s Severity) String() string {
+	switch s {
+	case SevOK:
+		return "OK"
+	case SevWatch:
+		return "Watch"
+	case SevDegraded:
+		return "Degraded"
+	case SevCritical:
+		return "Critical"
+	default:
+		return "OK"
+	}
+}
+
+// Verdict is the classifier's conclusion.
+type Verdict struct {
+	Culprit    Culprit
+	Severity   Severity
+	Confidence float64 // 0..1
+	Headline   string  // one-line plain-language summary
+	Detail     string  // supporting explanation
+	Fix        string  // recommended remediation
+}
