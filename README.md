@@ -53,10 +53,41 @@ never a black-box "booster."
 - **UI-agnostic engine** in pure Go; the CLI is fully testable in CI without a display.
 - **Honest.** No telemetry, no snake oil. We diagnose and explain.
 
+## Features
+
+- 📡 **Concentric-ring probing** — pings your **gateway**, the **first ISP hop**
+  (found via traceroute), and **public anchors** every second, with rolling
+  min/avg/p50/p95/p99, EWMA, RFC 3550 jitter and loss per target.
+- 🧠 **Bottleneck classifier** — a most-local-first decision tree turns the rings +
+  local signals into a plain-language verdict and a recommended fix.
+- 📶 **Wi-Fi & NIC insight** — RSSI/link-rate/SSID (WLAN API), wired-vs-wireless,
+  link speed, MTU, and error/discard counters (IP Helper API).
+- 🧪 **On-demand bufferbloat test** — saturates the downlink and grades the added
+  latency (A+…F), the metric speed tests miss.
+- 🖥️ **Native tray app** — walk-based dashboard that minimizes to the system tray,
+  plus a cross-platform CLI dashboard and a `--bufferbloat` one-shot mode.
+
+## Architecture
+
+```
+                       ┌──────────────────────────── engine ───────────────────────────┐
+  probe (ICMP API) ───▶│  schedules concentric-ring probes (gateway/ISP/internet)        │
+  netinfo (iphlpapi) ─▶│  refreshes topology + Wi-Fi/NIC                                  │──▶ model.Snapshot ──▶ classifier ──▶ Verdict
+  sysinfo (gopsutil) ─▶│  samples CPU/mem/throughput                                      │            │
+  dnsprobe ───────────▶│  measures DNS latency                                           │            ├──▶ ui/gui  (walk: window + tray)
+  bufferbloat ────────▶│  on-demand latency-under-load grade                             │            └──▶ ui/cli  (live ANSI dashboard)
+                       └─────────────────────────────────────────────────────────────────┘
+```
+
+The engine is UI-agnostic and emits a `Snapshot` stream; the classifier is a pure,
+unit-tested function. See [`docs/DESIGN.md`](docs/DESIGN.md) for the full design and
+[`docs/RESEARCH.md`](docs/RESEARCH.md) for the multi-source research brief behind it.
+
 ## Status
 
-🚧 Early development. See [`docs/DESIGN.md`](docs/DESIGN.md) for the architecture and
-[`docs/RESEARCH.md`](docs/RESEARCH.md) for the multi-source research brief behind it.
+🚧 Early development (v0.1). Core engine, classifier, CLI, and native GUI are working
+and verified on hardware. Roadmap: per-process bandwidth attribution (ETW), upload-side
+bufferbloat, configurable game-server targets, history persistence, and a signed release.
 
 ## Build
 

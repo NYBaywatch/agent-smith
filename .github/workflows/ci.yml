@@ -27,9 +27,9 @@ jobs:
         run: go mod download
       - name: Vet
         run: go vet ./...
-      - name: Test
+      - name: Test (race)
         run: go test -race ./...
-      - name: Build (CLI)
+      - name: Build (all packages)
         run: go build ./...
 
   build-windows-gui:
