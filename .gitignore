@@ -6,8 +6,10 @@
 *.dylib
 /bin/
 /dist/
-agent-smith
-agent-smith.exe
+# The built binary at the repo root only — anchored with a leading slash so it
+# does NOT match the cmd/agent-smith/ source directory.
+/agent-smith
+/agent-smith.exe
 
 # Test / coverage
 *.test
@@ -18,8 +20,10 @@ coverage.*
 go.work
 go.work.sum
 
-# Build / manifest temp
+# Build / manifest temp — but DO track the committed Windows resource so the
+# GUI (app manifest: Common Controls v6 + DPI awareness) builds in CI.
 *.syso
+!cmd/agent-smith/rsrc_windows.syso
 
 # IDE / OS
 .idea/
