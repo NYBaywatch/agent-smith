@@ -484,7 +484,8 @@ func (u *ui) render(s model.Snapshot) {
 		u.wifiVal.SetText("— (wired connection)")
 		u.wifiVal.SetTextColor(cSub)
 	}
-	u.resVal.SetText(fmt.Sprintf("CPU %.0f%% · Mem %.0f%% · ↓%.1f / ↑%.1f Mbps", s.Sys.CPUPercent, s.Sys.MemPercent, s.Sys.InMbps, s.Sys.OutMbps))
+	u.resVal.SetText(fmt.Sprintf("CPU %.0f%% · Mem %.0f%% (%.1f/%.1f GB) · GPU %s · net ↓%.1f / ↑%.1f Mbps",
+		s.Sys.CPUPercent, s.Sys.MemPercent, s.Sys.MemUsedGB, s.Sys.MemTotalGB, gpuStr(s.Sys.GPUPercent), s.Sys.InMbps, s.Sys.OutMbps))
 	u.resVal.SetTextColor(cText)
 	if s.DNS.Lookups > 0 {
 		u.dnsVal.SetText(fmt.Sprintf("%v avg", rnd(s.DNS.Avg)))
@@ -533,8 +534,14 @@ func formatIssues(issues []model.Issue) string {
 		is := issues[i]
 		fmt.Fprintf(&b, "[%s] %s · %s — %s%s",
 			is.Time.Format("2006-01-02 15:04:05"), strings.ToUpper(is.Severity.String()), is.Culprit, is.Headline, nl)
+		m := is.Metrics
+		fmt.Fprintf(&b, "    degraded: net %s jitter %s loss %.1f%% · gw %s · ISP %s · DNS %s%s%s",
+			msStr(m.InternetMs), msStr(m.InternetJitterMs), m.InternetLossPct,
+			msStr(m.GatewayMs), msStr(m.ISPMs), msStr(m.DNSms), bloatStr(m.Bufferbloat), nl)
+		fmt.Fprintf(&b, "    system:   CPU %.0f%% · Mem %.0f%% (%.1f/%.1f GB) · GPU %s%s%s",
+			m.CPUPct, m.MemPct, m.MemUsedGB, m.MemTotalGB, gpuStr(m.GPUPct), wifiStr(m), nl)
 		if len(is.Procs) > 0 {
-			b.WriteString("    top: ")
+			b.WriteString("    top:      ")
 			for j, p := range is.Procs {
 				if j >= 5 {
 					break
@@ -754,4 +761,33 @@ func trunc(s string, n int) string {
 		return s
 	}
 	return string(r[:n-1]) + "…"
+}
+
+// gpuStr formats a GPU percentage, showing "n/a" when unavailable (-1).
+func gpuStr(pct float64) string {
+	if pct < 0 {
+		return "n/a"
+	}
+	return fmt.Sprintf("%.0f%%", pct)
+}
+
+func msStr(ms float64) string {
+	if ms <= 0 {
+		return "—"
+	}
+	return fmt.Sprintf("%.1fms", ms)
+}
+
+func bloatStr(grade string) string {
+	if grade == "" {
+		return ""
+	}
+	return " · bloat " + grade
+}
+
+func wifiStr(m model.IssueMetrics) string {
+	if !m.OnWiFi {
+		return ""
+	}
+	return fmt.Sprintf(" · Wi-Fi %d dBm", m.RSSI)
 }

@@ -134,16 +134,37 @@ type ProcInfo struct {
 	MemMB float64 `json:"mem_mb"`
 }
 
-// Issue is a recorded degradation event: a timestamped verdict plus a snapshot
-// of the top processes running at that moment (to help correlate lag with apps).
+// IssueMetrics captures the concrete measured values at the moment an issue was
+// recorded — i.e. exactly what was degraded.
+type IssueMetrics struct {
+	GatewayMs        float64 `json:"gateway_ms"`
+	ISPMs            float64 `json:"isp_ms"`
+	InternetMs       float64 `json:"internet_ms"`
+	InternetJitterMs float64 `json:"internet_jitter_ms"`
+	InternetLossPct  float64 `json:"internet_loss_pct"`
+	CPUPct           float64 `json:"cpu_pct"`
+	MemPct           float64 `json:"mem_pct"`
+	MemUsedGB        float64 `json:"mem_used_gb"`
+	MemTotalGB       float64 `json:"mem_total_gb"`
+	GPUPct           float64 `json:"gpu_pct"` // -1 if unavailable
+	OnWiFi           bool    `json:"on_wifi"`
+	RSSI             int     `json:"rssi"` // dBm, valid only when OnWiFi
+	DNSms            float64 `json:"dns_ms"`
+	Bufferbloat      string  `json:"bufferbloat"` // grade, "" if not measured
+}
+
+// Issue is a recorded degradation event: a timestamped verdict, the measured
+// metrics that were degraded, plus a snapshot of the top processes running at
+// that moment (to help correlate lag with apps).
 type Issue struct {
-	Time     time.Time  `json:"time"`
-	Severity Severity   `json:"severity"`
-	Culprit  Culprit    `json:"culprit"`
-	Headline string     `json:"headline"`
-	Detail   string     `json:"detail"`
-	Fix      string     `json:"fix"`
-	Procs    []ProcInfo `json:"procs"`
+	Time     time.Time    `json:"time"`
+	Severity Severity     `json:"severity"`
+	Culprit  Culprit      `json:"culprit"`
+	Headline string       `json:"headline"`
+	Detail   string       `json:"detail"`
+	Fix      string       `json:"fix"`
+	Metrics  IssueMetrics `json:"metrics"`
+	Procs    []ProcInfo   `json:"procs"`
 }
 
 // HistPoint is one sampled moment of RTT history for the sparkline / persistence.

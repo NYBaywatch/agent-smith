@@ -20,6 +20,9 @@ import (
 type Stats struct {
 	CPUPercent float64 // 0..100 across all cores
 	MemPercent float64 // 0..100 used
+	MemUsedGB  float64 // used physical memory (GiB)
+	MemTotalGB float64 // total physical memory (GiB)
+	GPUPercent float64 // 0..100 busiest GPU engine; -1 when unavailable
 	InMbps     float64 // aggregate received throughput since last sample
 	OutMbps    float64 // aggregate sent throughput since last sample
 }
@@ -39,21 +42,30 @@ type Collector struct {
 	lastSent uint64
 	lastTime time.Time
 	primed   bool
+	gpu      *gpuQuery // platform GPU sampler; nil when unavailable
 }
 
 // NewCollector returns a ready-to-use Collector.
-func NewCollector() *Collector { return &Collector{} }
+func NewCollector() *Collector { return &Collector{gpu: newGPUQuery()} }
 
 // Sample captures CPU%, memory%, and NIC throughput since the previous call.
 // The first call primes the throughput baseline and reports 0 Mbps.
 func (c *Collector) Sample(ctx context.Context) (Stats, error) {
 	var st Stats
+	st.GPUPercent = -1 // unknown unless a sampler provides it
 
 	if cpus, err := cpu.PercentWithContext(ctx, 0, false); err == nil && len(cpus) > 0 {
 		st.CPUPercent = cpus[0]
 	}
 	if vm, err := mem.VirtualMemoryWithContext(ctx); err == nil {
 		st.MemPercent = vm.UsedPercent
+		st.MemUsedGB = float64(vm.Used) / (1 << 30)
+		st.MemTotalGB = float64(vm.Total) / (1 << 30)
+	}
+	if c.gpu != nil {
+		if v, ok := c.gpu.sample(); ok {
+			st.GPUPercent = v
+		}
 	}
 
 	now := time.Now()

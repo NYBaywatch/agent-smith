@@ -251,6 +251,7 @@ func (e *Engine) maybeRecordIssue(ctx context.Context, snap model.Snapshot) {
 		return
 	}
 	at := snap.Time
+	mx := issueMetrics(snap)
 	go func() {
 		var procs []model.ProcInfo
 		if top, err := sysinfo.TopCPUProcesses(ctx, 6); err == nil {
@@ -260,7 +261,7 @@ func (e *Engine) maybeRecordIssue(ctx context.Context, snap model.Snapshot) {
 		}
 		iss := model.Issue{
 			Time: at, Severity: v.Severity, Culprit: v.Culprit,
-			Headline: v.Headline, Detail: v.Detail, Fix: v.Fix, Procs: procs,
+			Headline: v.Headline, Detail: v.Detail, Fix: v.Fix, Metrics: mx, Procs: procs,
 		}
 		e.mu.Lock()
 		e.issues = append(e.issues, iss)
@@ -309,18 +310,58 @@ func rttMs(ts *model.TargetStats) float64 {
 }
 
 func bestInternetMs(snap model.Snapshot) float64 {
-	best := 0.0
+	if ts := bestInternetTS(snap); ts != nil {
+		return float64(ts.Stats.Mean) / float64(time.Millisecond)
+	}
+	return 0
+}
+
+// bestInternetTS returns the healthiest alive anchor (lowest mean RTT), or nil.
+func bestInternetTS(snap model.Snapshot) *model.TargetStats {
+	var best *model.TargetStats
 	for i := range snap.Internet {
-		ts := snap.Internet[i]
+		ts := &snap.Internet[i]
 		if !ts.Alive {
 			continue
 		}
-		m := float64(ts.Stats.Mean) / float64(time.Millisecond)
-		if best == 0 || m < best {
-			best = m
+		if best == nil || ts.Stats.Mean < best.Stats.Mean {
+			best = ts
 		}
 	}
 	return best
+}
+
+// issueMetrics extracts the concrete measured values behind a verdict.
+func issueMetrics(snap model.Snapshot) model.IssueMetrics {
+	ms := func(d time.Duration) float64 { return float64(d) / float64(time.Millisecond) }
+	mx := model.IssueMetrics{
+		GatewayMs:   rttMs(snap.Gateway),
+		ISPMs:       rttMs(snap.ISPHop),
+		InternetMs:  bestInternetMs(snap),
+		CPUPct:      snap.Sys.CPUPercent,
+		MemPct:      snap.Sys.MemPercent,
+		MemUsedGB:   snap.Sys.MemUsedGB,
+		MemTotalGB:  snap.Sys.MemTotalGB,
+		GPUPct:      snap.Sys.GPUPercent,
+		DNSms:       ms(snap.DNS.Avg),
+		Bufferbloat: bufferbloatGrade(snap),
+	}
+	if b := bestInternetTS(snap); b != nil {
+		mx.InternetJitterMs = ms(b.Stats.Jitter)
+		mx.InternetLossPct = b.Stats.Loss * 100
+	}
+	if snap.Net != nil && snap.Net.WiFi != nil {
+		mx.OnWiFi = true
+		mx.RSSI = snap.Net.WiFi.RSSI
+	}
+	return mx
+}
+
+func bufferbloatGrade(snap model.Snapshot) string {
+	if snap.Bufferbloat != nil {
+		return snap.Bufferbloat.Grade
+	}
+	return ""
 }
 
 func (e *Engine) currentTargets() []Target {
