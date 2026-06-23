@@ -1,0 +1,35 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/bin/
+/dist/
+agent-smith
+agent-smith.exe
+
+# Test / coverage
+*.test
+*.out
+coverage.*
+
+# Go workspace
+go.work
+go.work.sum
+
+# Build / manifest temp
+*.syso
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Local config / data written at runtime
+*.local
+/data/
+*.db
+*.sqlite
