@@ -214,6 +214,8 @@ func Run(ctx context.Context, e *engine.Engine) error {
 				Children: []decl.Widget{
 					decl.PushButton{AssignTo: &u.bbButton, Text: "Run Bufferbloat Test", OnClicked: u.onBufferbloat,
 						ToolTipText: "Saturate your download for ~10 s and measure how much latency it adds — the metric speed tests miss."},
+					decl.PushButton{Text: "Clear Events", OnClicked: u.onClearEvents,
+						ToolTipText: "Remove all recorded events from the list and from disk."},
 					decl.Label{AssignTo: &u.bbStatus, Text: "", TextColor: cSub, Background: bgBrush},
 					decl.HSpacer{},
 				},
@@ -576,6 +578,12 @@ func (u *ui) rebuildIssues(issues []model.Issue) {
 	}
 	_ = u.issueTable.SetCurrentIndex(idx)
 	u.showIssueDetail()
+}
+
+func (u *ui) onClearEvents() {
+	u.eng.ClearIssues()
+	u.rebuildIssues(u.eng.Issues())
+	u.issueDetail.SetText("Select an event above to see details.")
 }
 
 func (u *ui) showIssueDetail() {

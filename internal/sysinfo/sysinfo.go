@@ -7,6 +7,7 @@ package sysinfo
 
 import (
 	"context"
+	"runtime"
 	"sort"
 	"time"
 
@@ -96,16 +97,28 @@ func bytesToMbps(deltaBytes uint64, seconds float64) float64 {
 // TopCPUProcesses returns up to n processes sorted by descending CPU usage.
 // This is comparatively expensive (it enumerates all processes), so it is meant
 // to be called on demand — e.g. only when CPU pressure is already detected.
+//
+// CPU is normalized to a share of TOTAL system capacity (0..100%), matching
+// Task Manager: gopsutil reports process CPU per-core (so a process spanning
+// several cores can read 600%+), which we divide by the logical core count.
 func TopCPUProcesses(ctx context.Context, n int) ([]ProcCPU, error) {
 	procs, err := process.ProcessesWithContext(ctx)
 	if err != nil {
 		return nil, err
+	}
+	cores := float64(runtime.NumCPU())
+	if cores < 1 {
+		cores = 1
 	}
 	out := make([]ProcCPU, 0, len(procs))
 	for _, p := range procs {
 		cp, err := p.CPUPercent()
 		if err != nil {
 			continue
+		}
+		cp /= cores
+		if cp > 100 {
+			cp = 100
 		}
 		name, _ := p.Name()
 		var memMB float64

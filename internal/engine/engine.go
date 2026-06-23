@@ -291,6 +291,15 @@ func (e *Engine) Issues() []model.Issue {
 	return out
 }
 
+// ClearIssues empties the recorded issue log and persists the change.
+func (e *Engine) ClearIssues() {
+	e.mu.Lock()
+	e.issues = nil
+	e.lastIssueKey = ""
+	e.mu.Unlock()
+	e.save()
+}
+
 // save persists current history + issues (best effort).
 func (e *Engine) save() {
 	e.mu.RLock()
