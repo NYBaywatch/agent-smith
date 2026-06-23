@@ -11,24 +11,23 @@ import (
 // CLI dashboard is the default everywhere; on Windows a native GUI is launched
 // unless --cli is passed (see launchGUI in the platform-specific files).
 func run(ctx context.Context, forceCLI bool) error {
+	// Derive a cancellable context so that quitting the UI (e.g. the tray "Quit"
+	// action, which does not raise SIGINT) also stops the engine and returns,
+	// rather than hanging the process.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	eng, err := engine.New(engine.DefaultConfig())
 	if err != nil {
 		return err
 	}
 
-	errCh := make(chan error, 1)
-	go func() { errCh <- eng.Run(ctx) }()
+	go func() { _ = eng.Run(ctx) }()
 
+	// The UI call blocks until the user quits or ctx is cancelled. When it
+	// returns, the deferred cancel() tears down the engine.
 	if !forceCLI && guiAvailable() {
-		if err := launchGUI(ctx, eng); err != nil {
-			return err
-		}
-	} else {
-		if err := cliui.Run(ctx, eng); err != nil {
-			return err
-		}
+		return launchGUI(ctx, eng)
 	}
-
-	<-ctx.Done()
-	return nil
+	return cliui.Run(ctx, eng)
 }
