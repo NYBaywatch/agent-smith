@@ -19,10 +19,15 @@ import (
 	"github.com/NYBaywatch/agent-smith/internal/probe"
 )
 
+// userAgent is sent with load requests; some CDNs (e.g. Cloudflare) reject the
+// default Go user agent with HTTP 403.
+const userAgent = "AgentSmith/1.0 (+https://github.com/NYBaywatch/agent-smith)"
+
 // Options configures a bufferbloat run.
 type Options struct {
-	// LoadURL must stream a large payload. Defaults to Cloudflare's speed endpoint.
-	LoadURL string
+	// LoadURLs are candidate large-file endpoints; the first that responds 200
+	// is used to saturate the link. Defaults to a list of public test files.
+	LoadURLs []string
 	// Connections is the number of parallel download streams used to saturate.
 	Connections int
 	// WarmUp is ignored for the baseline; it lets the download ramp before
@@ -41,7 +46,10 @@ type Options struct {
 // DefaultOptions returns sensible defaults (~10s total test).
 func DefaultOptions() Options {
 	return Options{
-		LoadURL:         "https://speed.cloudflare.com/__down?bytes=200000000",
+		LoadURLs: []string{
+			"https://proof.ovh.net/files/100Mb.dat",
+			"http://ipv4.download.thinkbroadband.com/100MB.zip",
+		},
 		Connections:     4,
 		WarmUp:          1500 * time.Millisecond,
 		LoadDuration:    7 * time.Second,
@@ -66,8 +74,8 @@ type Result struct {
 // ctx. Upload-direction testing is planned; this measures the download path.
 func Run(ctx context.Context, p probe.Pinger, opt Options) (Result, error) {
 	o := DefaultOptions()
-	if opt.LoadURL != "" {
-		o.LoadURL = opt.LoadURL
+	if len(opt.LoadURLs) > 0 {
+		o.LoadURLs = opt.LoadURLs
 	}
 	if opt.Connections > 0 {
 		o.Connections = opt.Connections
@@ -98,6 +106,13 @@ func Run(ctx context.Context, p probe.Pinger, opt Options) (Result, error) {
 	}
 	res.IdleRTT = median(idle)
 
+	// Pick a load endpoint that actually serves us (some CDNs 403 non-browser
+	// clients); fail clearly rather than reporting a bogus grade with no load.
+	loadURL := pickWorkingURL(ctx, o.LoadURLs)
+	if loadURL == "" {
+		return res, fmt.Errorf("bufferbloat: no reachable download endpoint (tried %d)", len(o.LoadURLs))
+	}
+
 	// Phase 2: saturate + sample under load.
 	loadCtx, cancelLoad := context.WithCancel(ctx)
 	var bytesRead atomic.Uint64
@@ -106,7 +121,7 @@ func Run(ctx context.Context, p probe.Pinger, opt Options) (Result, error) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			saturate(loadCtx, o.LoadURL, &bytesRead)
+			saturate(loadCtx, loadURL, &bytesRead)
 		}()
 	}
 
@@ -132,6 +147,11 @@ func Run(ctx context.Context, p probe.Pinger, opt Options) (Result, error) {
 	if elapsed > 0 {
 		res.DownloadMbps = float64(endBytes-startBytes) * 8 / 1e6 / elapsed
 	}
+	// If essentially nothing downloaded, the link was never saturated, so any
+	// grade would be meaningless — report the failure instead.
+	if endBytes-startBytes < 256*1024 {
+		return res, fmt.Errorf("bufferbloat: link was not saturated (only %d bytes downloaded); result is not meaningful", endBytes-startBytes)
+	}
 	if len(loaded) == 0 {
 		return res, fmt.Errorf("bufferbloat: no loaded samples")
 	}
@@ -152,11 +172,15 @@ func saturate(ctx context.Context, url string, counter *atomic.Uint64) {
 	if err != nil {
 		return
 	}
+	req.Header.Set("User-Agent", userAgent)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return
+	}
 	buf := make([]byte, 64*1024)
 	for {
 		n, err := resp.Body.Read(buf)
@@ -167,6 +191,40 @@ func saturate(ctx context.Context, url string, counter *atomic.Uint64) {
 			return
 		}
 	}
+}
+
+// pickWorkingURL returns the first URL that responds 200 to a GET with our
+// user agent (reading a little to confirm a real body), or "" if none do.
+func pickWorkingURL(ctx context.Context, urls []string) string {
+	for _, url := range urls {
+		if ctx.Err() != nil {
+			return ""
+		}
+		pctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		req, err := http.NewRequestWithContext(pctx, http.MethodGet, url, nil)
+		if err != nil {
+			cancel()
+			continue
+		}
+		req.Header.Set("User-Agent", userAgent)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			cancel()
+			continue
+		}
+		ok := resp.StatusCode == http.StatusOK
+		if ok {
+			buf := make([]byte, 32*1024)
+			n, _ := resp.Body.Read(buf)
+			ok = n > 0
+		}
+		resp.Body.Close()
+		cancel()
+		if ok {
+			return url
+		}
+	}
+	return ""
 }
 
 func samplePings(ctx context.Context, p probe.Pinger, target net.IP, count int, interval time.Duration) []time.Duration {
