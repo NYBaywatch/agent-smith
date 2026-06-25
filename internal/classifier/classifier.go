@@ -1,5 +1,5 @@
 // Package classifier turns a Snapshot into a Verdict: which segment of the path
-// is most likely responsible for degraded gaming experience. It evaluates rules
+// is most likely responsible for degraded network performance. It evaluates rules
 // most-local-first (a local fault masks everything downstream) following the
 // decision heuristic in docs/DESIGN.md.
 package classifier
@@ -70,8 +70,8 @@ func ClassifyWith(s model.Snapshot, t Thresholds) model.Verdict {
 			Severity:   model.SevDegraded,
 			Confidence: 0.8,
 			Headline:   fmt.Sprintf("Your PC is maxed out (CPU %.0f%%)", s.Sys.CPUPercent),
-			Detail:     "Sustained high CPU can delay packet processing and input handling, which feels exactly like network lag even when the link is fine.",
-			Fix:        "Close background apps (browsers, launchers, recording/streaming software) and recheck. Consider Windows Game Mode.",
+			Detail:     "Sustained high CPU can delay packet processing and I/O, which looks exactly like network lag even when the link is fine — and it throttles latency-sensitive workloads (gaming, video calls, AI inference/training).",
+			Fix:        "Close or throttle background apps competing for CPU (browsers, launchers, recording/streaming software, other jobs) and recheck.",
 		}
 	}
 	if nicErr := nicErrors(s.Net); nicErr >= t.NICErrThreshold {
@@ -100,7 +100,7 @@ func ClassifyWith(s model.Snapshot, t Thresholds) model.Verdict {
 				Confidence: 0.8,
 				Headline:   fmt.Sprintf("Weak/unstable Wi-Fi (RSSI %d dBm)", rssi),
 				Detail:     "The wireless link between you and the router is the weak point — low signal causes retransmits, jitter, and loss before traffic even reaches the internet.",
-				Fix:        "Move closer to the router, switch to 5/6 GHz, reduce interference, or (best) use a wired Ethernet connection for gaming.",
+				Fix:        "Move closer to the router, switch to 5/6 GHz, reduce interference, or (best) use a wired Ethernet connection for latency-sensitive work.",
 			}
 		}
 	}
@@ -165,7 +165,7 @@ func ClassifyWith(s model.Snapshot, t Thresholds) model.Verdict {
 		detail := "Your local network and ISP edge look fine, but public hosts are unreachable — no replies from the internet anchors. The issue is upstream of your connection."
 		sev := model.SevCritical
 		if best.Alive {
-			detail = fmt.Sprintf("Your local network and ISP edge look fine, but reaching public hosts is poor (best anchor: %s, jitter %s, loss %.1f%%). The issue is in the wider internet or the game server's path.", round(best.Stats.Mean), round(best.Stats.Jitter), best.Stats.Loss*100)
+			detail = fmt.Sprintf("Your local network and ISP edge look fine, but reaching public hosts is poor (best anchor: %s, jitter %s, loss %.1f%%). The issue is in the wider internet or the path to the remote server/service.", round(best.Stats.Mean), round(best.Stats.Jitter), best.Stats.Loss*100)
 			sev = model.SevDegraded
 		}
 		return model.Verdict{
@@ -185,7 +185,7 @@ func ClassifyWith(s model.Snapshot, t Thresholds) model.Verdict {
 			Severity:   model.SevWatch,
 			Confidence: 0.7,
 			Headline:   fmt.Sprintf("Slow DNS resolution (%s avg)", round(s.DNS.Avg)),
-			Detail:     "Connectivity is fine, but turning names into addresses is slow, which makes launching games/matchmaking feel sluggish.",
+			Detail:     "Connectivity is fine, but turning names into addresses is slow, which makes connecting to servers, sites, and APIs feel sluggish.",
 			Fix:        "Switch your DNS to a fast resolver such as 1.1.1.1 (Cloudflare) or 8.8.8.8 (Google).",
 		}
 	}
@@ -199,7 +199,7 @@ func ClassifyWith(s model.Snapshot, t Thresholds) model.Verdict {
 		Culprit:    model.CulpritHealthy,
 		Severity:   sev,
 		Confidence: 0.9,
-		Headline:   "Connection looks good for gaming",
+		Headline:   "Connection is healthy",
 		Detail:     internetSummary(s),
 		Fix:        "",
 	}

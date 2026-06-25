@@ -34,7 +34,12 @@ func collect() (*Info, error) {
 	}
 
 	info := &Info{}
-	var active *windows.IpAdapterAddresses
+	gateways := map[uint32]net.IP{} // ifIndex -> gateway IP
+
+	// firstGW remembers the first up adapter that has a gateway, used as a
+	// fallback when the OS best-interface lookup is unavailable.
+	var fallbackIdx uint32
+	haveFallback := false
 
 	for a := adapters; a != nil; a = a.Next {
 		if a.IfType == ifTypeLoopback {
@@ -52,23 +57,31 @@ func collect() (*Info, error) {
 		fillCounters(&iface)
 		info.Interfaces = append(info.Interfaces, iface)
 
-		// The active egress interface is an up adapter that has a default gateway.
-		if active == nil && a.OperStatus == ifOperStatusUp && a.FirstGatewayAddress != nil {
+		if a.OperStatus == ifOperStatusUp && a.FirstGatewayAddress != nil {
 			if gw := sockaddrIP(a.FirstGatewayAddress.Address); gw != nil {
-				info.GatewayIP = gw
-				active = a
+				gateways[a.IfIndex] = gw
+				if !haveFallback {
+					fallbackIdx, haveFallback = a.IfIndex, true
+				}
 			}
 		}
 	}
 
-	if active != nil {
-		idx := active.IfIndex
+	// Auto-detect the active egress adapter: ask the OS which interface it would
+	// use to reach the public internet (this picks Wi-Fi vs Ethernet correctly
+	// even when both are connected). Fall back to the first adapter with a gateway.
+	activeIdx, ok := bestInterfaceIndex()
+	if _, hasGW := gateways[activeIdx]; !ok || !hasGW {
+		activeIdx, ok = fallbackIdx, haveFallback
+	}
+	if ok {
 		for i := range info.Interfaces {
-			if info.Interfaces[i].Index == idx {
+			if info.Interfaces[i].Index == activeIdx {
 				info.Active = &info.Interfaces[i]
 				break
 			}
 		}
+		info.GatewayIP = gateways[activeIdx]
 		if info.Active != nil && info.Active.Media == MediaWireless {
 			if w := collectWiFi(); w != nil {
 				info.WiFi = w
@@ -77,6 +90,17 @@ func collect() (*Info, error) {
 	}
 
 	return info, nil
+}
+
+// bestInterfaceIndex asks Windows which interface it would use to reach a public
+// internet address — i.e. the active egress adapter (Wi-Fi or Ethernet).
+func bestInterfaceIndex() (uint32, bool) {
+	var idx uint32
+	sa := &windows.SockaddrInet4{Addr: [4]byte{8, 8, 8, 8}}
+	if err := windows.GetBestInterfaceEx(sa, &idx); err != nil {
+		return 0, false
+	}
+	return idx, true
 }
 
 func mediaFromIfType(t uint32) MediaType {

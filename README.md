@@ -1,12 +1,13 @@
 # Agent Smith 🕶️
 
-**A native Windows connection-quality agent for gamers — that hunts down *where* your lag actually lives.**
+**A native Windows network & system performance monitor that hunts down *where* your bottleneck actually lives.**
 
-> *"Me, me, me..."* Generic speed tests answer the wrong question (*how many Mbps?*).
-> Gamers care about a different physics: small, time-critical packets reaching the
-> server with **low latency, low jitter, and near-zero loss — even while the link is
-> busy.** Agent Smith measures exactly that, continuously, and then **localizes** the
-> bottleneck to one of five culprits:
+> Generic speed tests answer the wrong question (*how many Mbps?*). What actually
+> determines whether a real-time workload feels good is a different physics: small,
+> time-critical packets reaching the far end with **low latency, low jitter, and
+> near-zero loss — even while the link and machine are busy.** Agent Smith measures
+> exactly that, continuously, alongside local CPU / memory / GPU pressure, and then
+> **localizes** the bottleneck to one of five places:
 
 > **🖥️ Local machine · 📶 Wi-Fi · 🔌 LAN / router · 🛰️ ISP access link · 🌐 Upstream internet**
 
@@ -18,64 +19,69 @@
 
 ---
 
-## Why?
+## Who it's for
 
-A 1 Gbps connection that adds 300 ms of latency under load is **worse** for Valorant,
-Rocket League, or a fighting game than a flat 50 Mbps line. Agent Smith is built around
-the metrics that decide whether a game *feels* good, and around the one question a monitor
-should actually answer: **"is it me, or is it them?"**
+Anyone whose work or play depends on a connection (and a machine) that stays
+responsive *under load*:
+
+- 🎮 **Gaming** — latency, jitter and loss decide hit registration and rubber-banding.
+- 🤖 **AI / ML workloads** — distributed training and inference are sensitive to RTT,
+  jitter and loss; large dataset / model-weight transfers and API calls to hosted
+  models care about throughput, DNS, and bufferbloat.
+- 🎥 **Video calls & live streaming** — jitter and loss cause freezes and artifacts.
+- 🖥️ **Remote dev / SSH / RDP / cloud** — every keystroke round-trips.
+
+Agent Smith is built around the metrics that decide whether these feel good, and
+around the one question a monitor should actually answer: **"is it me, or is it them?"**
 
 ## What it measures
 
-| Metric | Why it matters | Target for gaming |
+| Metric | Why it matters | Healthy target |
 |---|---|---|
-| **Latency (RTT)** | Dominant factor in responsiveness | < 50 ms (competitive < 30 ms) |
-| **Jitter** (RFC 3550) | Erratic timing defeats client prediction → rubber-banding | < 5 ms |
-| **Packet loss** | A lost UDP packet is a lost world-update | < 1 % |
-| **Bufferbloat** (latency under load) | "Fine until someone streams Netflix" | Grade A/B (≤ 50 ms added) |
-| **Throughput** | A *precondition*, never the headline | a few Mbps is plenty |
+| **Latency (RTT)** | Dominant factor in responsiveness | < 50 ms (real-time: < 30 ms) |
+| **Jitter** (RFC 3550) | Erratic timing breaks prediction → stutter, rubber-banding, uneven throughput | < 5 ms |
+| **Packet loss** | A lost packet is a lost update / a retransmit | < 1 % |
+| **Bufferbloat** (latency under load) | "Fine until something else uses the link" (a download, a backup, a training job) | Grade A/B (≤ 50 ms added) |
+| **Local CPU / memory / GPU** | A saturated machine *looks* like network lag and throttles workloads | headroom to spare |
+| **Throughput** | A *precondition* (and it matters for bulk transfers), not the headline for latency | enough for the task |
 
 ## How it localizes the problem
 
 It probes **concentric rings** and compares them — your **gateway** (LAN), the **first
 ISP hop**, and **public anchors** (`1.1.1.1`, `8.8.8.8`) — while watching local signals
-(Wi-Fi RSSI, NIC link speed/errors, CPU/bandwidth contention, DNS latency). A degradation
-that first appears at hop *N* and persists downstream is introduced at hop *N*. The
-classifier turns those signals into a plain-language verdict and points you at the **right
-fix** (Ethernet, router SQM for bufferbloat, Wi-Fi channel, NIC power settings, DNS) —
-never a black-box "booster."
-
-## Design highlights
-
-- **No admin required.** Uses the **Windows ICMP API** (`IcmpSendEcho`), not raw sockets.
-- **Native Windows UI** via [lxn/walk](https://github.com/lxn/walk) — real Win32 widgets,
-  tiny binary, system-tray friendly. (A cross-platform CLI dashboard ships too.)
-- **UI-agnostic engine** in pure Go; the CLI is fully testable in CI without a display.
-- **Honest.** No telemetry, no snake oil. We diagnose and explain.
+(Wi-Fi RSSI, NIC link speed/errors, **CPU / memory / GPU** pressure, DNS latency). A
+degradation that first appears at hop *N* and persists downstream is introduced at hop
+*N*. The classifier turns those signals into a plain-language verdict and points you at
+the **right fix** (Ethernet, router SQM for bufferbloat, Wi-Fi channel, NIC power
+settings, DNS, or "close the job pegging your CPU") — never a black-box "booster."
 
 ## Features
 
-- 📡 **Concentric-ring probing** — pings your **gateway**, the **first ISP hop**
-  (found via traceroute), and **public anchors** every second, with rolling
-  min/avg/p50/p95/p99, EWMA, RFC 3550 jitter and loss per target.
-- 🧠 **Bottleneck classifier** — a most-local-first decision tree turns the rings +
-  local signals into a plain-language verdict and a recommended fix.
-- 📶 **Wi-Fi & NIC insight** — RSSI/link-rate/SSID (WLAN API), wired-vs-wireless,
-  link speed, MTU, and error/discard counters (IP Helper API).
-- 🧪 **On-demand bufferbloat test** — saturates the downlink and grades the added
-  latency (A+…F), the metric speed tests miss.
-- 🖥️ **Native tray app** — walk-based dashboard that minimizes to the system tray,
-  plus a cross-platform CLI dashboard and a `--bufferbloat` one-shot mode.
+- 📡 **Concentric-ring probing** with rolling min/avg/p50/p95/p99, EWMA, RFC 3550
+  jitter and loss per target.
+- 🧠 **Bottleneck classifier** — a most-local-first decision tree → plain-language
+  verdict and recommended fix.
+- 🔌 **Automatic adapter detection** — uses the OS's own routing to identify the live
+  egress interface (Wi-Fi *or* Ethernet) even when both are connected.
+- 📊 **System resources** — total CPU, total memory (used/total), and **total GPU**
+  utilization (Windows PDH), so machine-side bottlenecks are caught too.
+- 🧪 **On-demand bufferbloat test** — saturates the link and grades added latency (A+…F).
+- 🗂️ **Event log with drill-down** — every detected problem is recorded with a timestamp,
+  the exact degraded metrics, system state, and a `ps`-style snapshot of the busiest
+  processes; **persists across sessions**.
+- 🖥️ **Native tray app** (lxn/walk): dark dashboard with a live RTT history sparkline,
+  tooltips on every metric, and Ctrl+wheel font scaling — plus a cross-platform CLI
+  dashboard and a `--bufferbloat` one-shot mode.
 
 ## Architecture
 
 ```
                        ┌──────────────────────────── engine ───────────────────────────┐
   probe (ICMP API) ───▶│  schedules concentric-ring probes (gateway/ISP/internet)        │
-  netinfo (iphlpapi) ─▶│  refreshes topology + Wi-Fi/NIC                                  │──▶ model.Snapshot ──▶ classifier ──▶ Verdict
-  sysinfo (gopsutil) ─▶│  samples CPU/mem/throughput                                      │            │
-  dnsprobe ───────────▶│  measures DNS latency                                           │            ├──▶ ui/gui  (walk: window + tray)
-  bufferbloat ────────▶│  on-demand latency-under-load grade                             │            └──▶ ui/cli  (live ANSI dashboard)
+  netinfo (iphlpapi) ─▶│  auto-detects active adapter + Wi-Fi/NIC                         │──▶ model.Snapshot ──▶ classifier ──▶ Verdict
+  sysinfo (gopsutil  ─▶│  samples CPU / memory / GPU / throughput                         │            │
+   + PDH GPU) │         │  measures DNS latency; records history + issues (persisted)      │            ├──▶ ui/gui (walk: window + tray)
+  bufferbloat ────────▶│  on-demand latency-under-load grade                              │            └──▶ ui/cli (live dashboard)
                        └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -83,13 +89,15 @@ The engine is UI-agnostic and emits a `Snapshot` stream; the classifier is a pur
 unit-tested function. See [`docs/DESIGN.md`](docs/DESIGN.md) for the full design and
 [`docs/RESEARCH.md`](docs/RESEARCH.md) for the multi-source research brief behind it.
 
-## Status
+## Design highlights
 
-🚧 Early development (v0.1). Core engine, classifier, CLI, and native GUI are working
-and verified on hardware. Roadmap: per-process bandwidth attribution (ETW), upload-side
-bufferbloat, configurable game-server targets, history persistence, and a signed release.
+- **No admin required.** Uses the **Windows ICMP API** (`IcmpSendEcho`), not raw sockets.
+- **Native Windows UI** via [lxn/walk](https://github.com/lxn/walk) — real Win32 widgets,
+  tiny binary, system-tray friendly, dark themed.
+- **UI-agnostic engine** in pure Go; the CLI is fully testable in CI without a display.
+- **Honest.** No telemetry, no snake oil. It diagnoses and explains.
 
-## Build
+## Build & run
 
 ```sh
 go build ./...
@@ -98,7 +106,11 @@ go test ./...
 go build -ldflags="-H windowsgui" -o agent-smith.exe ./cmd/agent-smith
 # Headless live dashboard (any platform):
 go run ./cmd/agent-smith --cli
+# One-shot bufferbloat test:
+go run ./cmd/agent-smith --bufferbloat
 ```
+
+Pre-built Windows binaries are attached to each [release](https://github.com/NYBaywatch/agent-smith/releases).
 
 ## License
 

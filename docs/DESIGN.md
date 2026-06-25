@@ -3,27 +3,33 @@
 > *"Never send a human to do a machine's job."* — Agent Smith
 >
 > **Agent Smith** is a native Windows desktop agent that continuously watches your
-> internet connection the way a competitive gamer cares about it — latency, jitter,
-> packet loss, and bufferbloat — and then **hunts down where the problem actually
-> lives**: your PC, your Wi‑Fi, your router/LAN, your ISP access link, or the wider
-> internet. Generic speed tests tell you a number. Agent Smith tells you *who to blame.*
+> network **and** your machine the way any latency-sensitive workload cares about —
+> latency, jitter, packet loss, bufferbloat, and local CPU/memory/GPU pressure — and
+> then **hunts down where the problem actually lives**: your PC, your Wi‑Fi, your
+> router/LAN, your ISP access link, or the wider internet. Generic speed tests tell
+> you a number. Agent Smith tells you *who to blame.*
 
 ---
 
 ## 1. Product vision
 
-Most "internet quality" tools optimize for the wrong metric for gamers: **throughput**.
-A 1 Gbps connection that adds 300 ms of latency under load is *worse* for Rocket League,
-Valorant, or Street Fighter than a 50 Mbps line that stays flat. Agent Smith is built
-around the metrics that actually decide whether a game feels good, and around **fault
-localization** — the single most useful thing a monitor can do is answer *"is it me or
-is it them?"*
+Most "internet quality" tools optimize for the wrong metric: **throughput**. A 1 Gbps
+connection that adds 300 ms of latency under load is *worse* for a video call, a remote
+training run, a cloud IDE, or a competitive game than a 50 Mbps line that stays flat.
+Agent Smith is built around the metrics that actually decide whether real-time and
+latency-sensitive work feels good — across **gaming, AI/ML workloads, streaming, video
+conferencing, and remote development** — and around **fault localization**: the single
+most useful thing a monitor can do is answer *"is it me or is it them?"*
+
+It also watches the **machine itself** (CPU, memory, GPU), because a saturated host looks
+exactly like a network problem and throttles workloads on its own.
 
 Design principles:
 
-1. **Latency-first, not bandwidth-first.** Throughput is a context metric, not the headline.
+1. **Latency-first, not bandwidth-first.** Throughput is a context metric (and matters
+   for bulk transfers), not the headline for responsiveness.
 2. **Localize, don't just measure.** Every sample feeds a classifier that names the most
-   likely bottleneck segment.
+   likely bottleneck segment — network *or* local machine.
 3. **No admin required for the core loop.** Use the Windows ICMP API, not raw sockets.
 4. **No snake oil.** We measure and explain; we don't claim magic "boosters."
 5. **UI-agnostic engine.** A pure-Go engine drives both a headless CLI dashboard

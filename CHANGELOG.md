@@ -6,7 +6,23 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- **Reframed from "for gamers" to a general network & system performance monitor** —
+  positioned for gaming, AI/ML workloads, streaming, video calls, and remote dev.
+  Updated README, design brief, repo description, and all in-app text/verdicts.
+
 ### Added
+- **Automatic active-adapter detection** via the OS routing table
+  (`GetBestInterfaceEx`): correctly identifies the live egress interface (Wi-Fi or
+  Ethernet) even when both are connected, instead of guessing the first with a gateway.
+- **Total GPU, CPU and memory** in the resources view and in each recorded event.
+- **Event list with drill-down** and a **Clear Events** button.
+
+### Fixed
+- Per-process CPU in event snapshots is normalized to a share of total system
+  capacity (was reported per-core, so multi-core processes showed 600 %+).
+
+### Added (earlier in this cycle)
 - **Dark theme** for the GUI dashboard (Catppuccin Mocha palette).
 - **Session RTT history sparkline** — a live chart of ping over time for the
   gateway, ISP hop, and internet rings (in-memory, current session only).

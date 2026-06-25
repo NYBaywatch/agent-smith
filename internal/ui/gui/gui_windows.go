@@ -115,10 +115,10 @@ func Run(ctx context.Context, e *engine.Engine) error {
 	ringCols := []struct{ name, tip string }{
 		{"Ring", "Which segment of the path this row measures: LAN gateway, the first ISP hop, then public internet anchors."},
 		{"Target", "The host being pinged to represent this segment of the path."},
-		{"avg", "Average round-trip time (ping). Lower is better — under 50 ms is good for gaming, under 20 ms is excellent."},
+		{"avg", "Average round-trip time (ping). Lower is better — under 50 ms is good for real-time work, under 20 ms is excellent."},
 		{"p95", "95th-percentile RTT: most pings are at or below this. Exposes spikes the average hides."},
-		{"jitter", "RFC 3550 jitter — how much the ping varies. Under 5 ms is great; high jitter causes rubber-banding."},
-		{"loss", "Percent of probes with no reply. Even 1–2% noticeably hurts fast-paced games."},
+		{"jitter", "RFC 3550 jitter — how much the ping varies. Under 5 ms is great; high jitter causes stutter, rubber-banding, and erratic throughput."},
+		{"loss", "Percent of probes with no reply. Even 1–2% noticeably hurts real-time and latency-sensitive workloads."},
 	}
 	ringChildren := make([]decl.Widget, 0, 6*(maxRows+1))
 	for _, c := range ringCols {
@@ -137,7 +137,7 @@ func Run(ctx context.Context, e *engine.Engine) error {
 
 	err := (decl.MainWindow{
 		AssignTo:   &u.mw,
-		Title:      "Agent Smith — connection monitor for gamers",
+		Title:      "Agent Smith — network & system performance monitor",
 		Background: bgBrush,
 		MinSize:    decl.Size{Width: 740, Height: 760},
 		Size:       decl.Size{Width: 760, Height: 860},
@@ -150,7 +150,7 @@ func Run(ctx context.Context, e *engine.Engine) error {
 					decl.Label{Text: "🕶  AGENT SMITH", TextColor: cMauve, Font: decl.Font{Family: "Segoe UI", PointSize: 15, Bold: true}, Background: bgBrush},
 					decl.HSpacer{},
 					decl.Label{AssignTo: &u.statusPill, Text: "…", TextColor: cSub, Font: decl.Font{Family: "Segoe UI", PointSize: 12, Bold: true}, Background: bgBrush,
-						ToolTipText: "Overall health for gaming, summarised from all signals below."},
+						ToolTipText: "Overall connection health, summarised from all signals below."},
 				},
 			},
 			decl.Label{AssignTo: &u.verdict, Text: "Starting Agent Smith…", TextColor: cText, Font: decl.Font{Family: "Segoe UI", PointSize: 12, Bold: true}, Background: bgBrush,
@@ -176,11 +176,11 @@ func Run(ctx context.Context, e *engine.Engine) error {
 				Children: []decl.Widget{
 					name("Interface", "Your active adapter, connection type (wired/Wi-Fi), negotiated link speed and MTU. A 1 Gbps NIC linking at 100 Mbps signals a cable fault."),
 					cell(&u.ifaceVal, cText, mono),
-					name("Wi-Fi", "Wireless signal: RSSI in dBm (closer to 0 is stronger; better than −67 dBm is good for gaming), link rate and SSID. Wi-Fi adds jitter — Ethernet is best."),
+					name("Wi-Fi", "Wireless signal: RSSI in dBm (closer to 0 is stronger; better than −67 dBm is good), link rate and SSID. Wi-Fi adds jitter — Ethernet is best for latency-sensitive work."),
 					cell(&u.wifiVal, cText, mono),
 					name("Resources", "Local CPU and memory load plus current network throughput. Sustained high CPU or a saturating transfer can feel exactly like network lag."),
 					cell(&u.resVal, cText, mono),
-					name("DNS", "Average time to resolve domain names. Over ~100 ms makes launching games and matchmaking feel sluggish — try a faster resolver like 1.1.1.1."),
+					name("DNS", "Average time to resolve domain names. Over ~100 ms makes connecting to servers, sites, and APIs feel sluggish — try a faster resolver like 1.1.1.1."),
 					cell(&u.dnsVal, cText, mono),
 					name("Bufferbloat", "Latency added when the link is fully loaded, graded A+ to F. C or worse means the access-link queue is the problem (fix with router SQM/QoS)."),
 					cell(&u.bbVal, cText, mono),

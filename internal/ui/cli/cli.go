@@ -49,7 +49,7 @@ func render(s model.Snapshot) {
 	b.WriteString("\033[H") // home cursor
 
 	v := s.Verdict
-	b.WriteString(bold + cyan + "  AGENT SMITH " + reset + dim + " connection-quality monitor for gamers" + reset + "\n")
+	b.WriteString(bold + cyan + "  AGENT SMITH " + reset + dim + " network & system performance monitor" + reset + "\n")
 	b.WriteString(gray + "  " + s.Time.Format("15:04:05") + reset + "\n\n")
 
 	// Verdict banner.

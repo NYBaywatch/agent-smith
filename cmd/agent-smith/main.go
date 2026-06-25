@@ -67,7 +67,7 @@ func runBufferbloat(ctx context.Context) error {
 	if res.Grade == "C" || res.Grade == "D" || res.Grade == "F" {
 		fmt.Println("\n  ⚠ Significant bufferbloat. Enable SQM/QoS on your router — more bandwidth won't help.")
 	} else {
-		fmt.Println("\n  ✓ Latency stays low under load. Good for gaming.")
+		fmt.Println("\n  ✓ Latency stays low under load — healthy for real-time and latency-sensitive workloads.")
 	}
 	return nil
 }
