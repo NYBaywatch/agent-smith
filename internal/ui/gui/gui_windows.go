@@ -21,6 +21,7 @@ import (
 
 	"github.com/NYBaywatch/agent-smith/internal/bufferbloat"
 	"github.com/NYBaywatch/agent-smith/internal/engine"
+	"github.com/NYBaywatch/agent-smith/internal/interpret"
 	"github.com/NYBaywatch/agent-smith/internal/metrics"
 	"github.com/NYBaywatch/agent-smith/internal/model"
 )
@@ -608,38 +609,48 @@ func (u *ui) styleIssueCell(style *walk.CellStyle) {
 func formatIssueDetail(is model.Issue) string {
 	const nl = "\r\n"
 	var b strings.Builder
-	m := is.Metrics
 	fmt.Fprintf(&b, "%s%s", is.Headline, nl)
-	fmt.Fprintf(&b, "Time:      %s%s", is.Time.Format("2006-01-02 15:04:05"), nl)
-	fmt.Fprintf(&b, "Severity:  %s        Where: %s%s", strings.ToUpper(is.Severity.String()), is.Culprit, nl)
-	if is.Detail != "" {
-		fmt.Fprintf(&b, "%sWhat we think happened:%s  %s%s", nl, nl, is.Detail, nl)
+	fmt.Fprintf(&b, "%s  ·  %s  ·  %s%s", is.Time.Format("2006-01-02 15:04:05"), strings.ToUpper(is.Severity.String()), is.Culprit, nl)
+
+	// Plain-language meaning first — what this actually means for the user.
+	fmt.Fprintf(&b, "%sWHAT THIS MEANS%s%s%s", nl, nl, wordWrap(interpret.Summary(is), 78, "  "), nl)
+
+	// Interpreted measurements: value + rating + impact, aligned.
+	fmt.Fprintf(&b, "%sMEASUREMENTS%s", nl, nl)
+	for _, l := range interpret.Lines(is.Metrics) {
+		fmt.Fprintf(&b, "  %-14s %-18s %-10s %s%s", l.Label, l.Value, l.Rating, l.Meaning, nl)
 	}
+
 	if is.Fix != "" {
-		fmt.Fprintf(&b, "Suggested fix:%s  %s%s", nl, is.Fix, nl)
-	}
-
-	fmt.Fprintf(&b, "%sDegraded metrics:%s", nl, nl)
-	fmt.Fprintf(&b, "  Internet    %-9s jitter %-9s loss %.1f%%%s", msStr(m.InternetMs), msStr(m.InternetJitterMs), m.InternetLossPct, nl)
-	fmt.Fprintf(&b, "  Gateway     %s%s", msStr(m.GatewayMs), nl)
-	fmt.Fprintf(&b, "  ISP hop     %s%s", msStr(m.ISPMs), nl)
-	fmt.Fprintf(&b, "  DNS         %s%s", msStr(m.DNSms), nl)
-	if m.Bufferbloat != "" {
-		fmt.Fprintf(&b, "  Bufferbloat %s%s", m.Bufferbloat, nl)
-	}
-
-	fmt.Fprintf(&b, "%sSystem at the time:%s", nl, nl)
-	fmt.Fprintf(&b, "  CPU %.0f%%   Mem %.0f%% (%.1f/%.1f GB)   GPU %s%s", m.CPUPct, m.MemPct, m.MemUsedGB, m.MemTotalGB, gpuStr(m.GPUPct), nl)
-	if m.OnWiFi {
-		fmt.Fprintf(&b, "  Wi-Fi %d dBm%s", m.RSSI, nl)
+		fmt.Fprintf(&b, "%sSUGGESTED FIX%s%s%s", nl, nl, wordWrap(is.Fix, 78, "  "), nl)
 	}
 
 	if len(is.Procs) > 0 {
-		fmt.Fprintf(&b, "%sTop processes (ps snapshot):%s", nl, nl)
+		fmt.Fprintf(&b, "%sTOP PROCESSES (ps snapshot)%s", nl, nl)
 		for _, p := range is.Procs {
-			fmt.Fprintf(&b, "  %-26s %5.0f%%  %7.0f MB%s", trunc(p.Name, 26), p.CPU, p.MemMB, nl)
+			fmt.Fprintf(&b, "  %-26s %5.0f%% CPU  %7.0f MB%s", trunc(p.Name, 26), p.CPU, p.MemMB, nl)
 		}
 	}
+	return b.String()
+}
+
+// wordWrap wraps text to width columns, prefixing each line with indent.
+func wordWrap(s string, width int, indent string) string {
+	words := strings.Fields(s)
+	if len(words) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	line := indent + words[0]
+	for _, w := range words[1:] {
+		if len(line)+1+len(w) > width {
+			b.WriteString(line + "\r\n")
+			line = indent + w
+		} else {
+			line += " " + w
+		}
+	}
+	b.WriteString(line)
 	return b.String()
 }
 
@@ -855,25 +866,4 @@ func gpuStr(pct float64) string {
 		return "n/a"
 	}
 	return fmt.Sprintf("%.0f%%", pct)
-}
-
-func msStr(ms float64) string {
-	if ms <= 0 {
-		return "—"
-	}
-	return fmt.Sprintf("%.1fms", ms)
-}
-
-func bloatStr(grade string) string {
-	if grade == "" {
-		return ""
-	}
-	return " · bloat " + grade
-}
-
-func wifiStr(m model.IssueMetrics) string {
-	if !m.OnWiFi {
-		return ""
-	}
-	return fmt.Sprintf(" · Wi-Fi %d dBm", m.RSSI)
 }
