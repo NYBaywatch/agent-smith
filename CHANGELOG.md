@@ -7,6 +7,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Changed
+- **Redesigned the dashboard in an ops/Grafana style** (chosen from 3 mockups in
+  `docs/mockups/`): big stat tiles (latency/jitter/loss/bufferbloat), an
+  area-filled RTT chart with scale labels and legend, the path table, and painted
+  CPU/memory/GPU bars; dark title bar via DWM.
 - **Reframed from "for gamers" to a general network & system performance monitor** —
   positioned for gaming, AI/ML workloads, streaming, video calls, and remote dev.
   Updated README, design brief, repo description, and all in-app text/verdicts.
