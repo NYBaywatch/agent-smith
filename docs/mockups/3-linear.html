@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Agent Smith — Mockup 3 (Linear / premium minimal)</title>
+<style>
+  :root{
+    --bg:#08090b; --surf:#0f1013; --surf2:#15161a; --line:#1e1f25;
+    --txt:#ededf0; --mut:#8a8f99; --dim:#5b606b;
+    --acc:#7c6cff; --acc2:#a78bff; --net:#7c8cff; --lan:#3ddc97; --isp:#c08bff;
+    --grn:#3ddc97; --yel:#ffcf5c; --red:#ff6b81;
+    --ui:"Inter",-apple-system,"Segoe UI",sans-serif; --mono:"Geist Mono","JetBrains Mono",Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--ui);font-size:13.5px;-webkit-font-smoothing:antialiased}
+  .app{max-width:880px;margin:0 auto;padding:22px 22px 28px}
+  .top{display:flex;align-items:center;gap:10px;margin-bottom:22px}
+  .mark{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--acc),var(--isp));display:grid;place-items:center;font-weight:800;color:#fff;font-size:13px}
+  .name{font-weight:600;letter-spacing:-.2px}
+  .name span{color:var(--mut);font-weight:400;margin-left:8px}
+  .spacer{flex:1}
+  .ghost{color:var(--mut);font-size:12.5px;border:1px solid var(--line);padding:6px 12px;border-radius:8px}
+  /* hero */
+  .hero{position:relative;border:1px solid var(--line);border-radius:18px;padding:26px 28px;overflow:hidden;margin-bottom:14px;
+    background:radial-gradient(600px 200px at 18% -40%, rgba(124,108,255,.22), transparent 70%), var(--surf)}
+  .hero .state{display:flex;align-items:center;gap:10px;color:var(--grn);font-size:13px;font-weight:500}
+  .hero h1{margin:8px 0 0;font-size:34px;font-weight:600;letter-spacing:-1px}
+  .hero p{margin:8px 0 0;color:var(--mut);max-width:560px;line-height:1.5}
+  .stats{display:flex;gap:30px;margin-top:22px}
+  .stat .n{font-family:var(--mono);font-size:22px;font-weight:500}
+  .stat .k{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.7px;margin-top:3px}
+  .glow{position:absolute;right:-40px;top:-40px;width:220px;height:220px;border-radius:50%;
+    background:radial-gradient(closest-side, rgba(124,108,255,.25), transparent);pointer-events:none}
+  /* card */
+  .card{border:1px solid var(--line);border-radius:16px;background:var(--surf);padding:18px 20px;margin-bottom:14px}
+  .card h3{margin:0 0 14px;font-size:12px;color:var(--mut);font-weight:600;letter-spacing:.3px;text-transform:uppercase}
+  .legend{float:right;font-weight:500;text-transform:none;letter-spacing:0;font-size:11.5px;color:var(--mut)}
+  .legend b{margin-left:12px;font-weight:500}
+  /* path */
+  .path{display:flex;gap:10px}
+  .node{flex:1;background:var(--surf2);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .node .lbl{color:var(--mut);font-size:11px}
+  .node .v{font-family:var(--mono);font-size:20px;margin-top:6px}
+  .node .ok{color:var(--grn);font-size:11px;margin-top:4px}
+  .arrow{align-self:center;color:var(--dim)}
+  /* split */
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .res .r{margin-bottom:14px}
+  .res .r:last-child{margin-bottom:0}
+  .res .top2{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:6px}
+  .res .top2 .mut{color:var(--mut)} .res .top2 b{font-family:var(--mono);font-weight:500}
+  .track{height:6px;border-radius:6px;background:var(--surf2)}
+  .track i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,var(--acc),var(--acc2))}
+  /* events */
+  .evlist .e{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--line);cursor:default}
+  .evlist .e:first-child{border-top:0}
+  .evlist .e.sel{margin:0 -20px;padding:11px 20px;background:linear-gradient(90deg,rgba(124,108,255,.08),transparent);border-left:2px solid var(--acc)}
+  .badge{font-size:10px;font-weight:600;padding:3px 8px;border-radius:6px;flex:none}
+  .badge.red{color:var(--red);background:rgba(255,107,129,.12)} .badge.yel{color:var(--yel);background:rgba(255,207,92,.12)}
+  .e .h{font-size:13px;font-weight:500;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .e .t{color:var(--dim);font-size:11.5px;font-family:var(--mono);white-space:nowrap}
+  /* detail drawer */
+  .drawer{margin-top:14px;background:var(--surf2);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .drawer .means{color:var(--txt);line-height:1.55;font-size:13px}
+  .drawer .means b{color:var(--acc2)}
+  .mlist{margin-top:14px;display:grid;gap:8px}
+  .m{display:grid;grid-template-columns:96px 70px 64px 1fr;align-items:center;gap:10px;font-size:12px}
+  .m .ml{color:var(--mut)} .m .mv{font-family:var(--mono)}
+  .r-EXCELLENT,.r-GOOD{color:var(--grn)} .r-FAIR{color:var(--yel)} .r-POOR{color:var(--red)} .r-INFO{color:var(--dim)}
+  .m .mt{color:var(--mut)}
+  .footer{color:var(--dim);font-size:11px;text-align:center;padding-top:16px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="mark">◈</div>
+    <div class="name">Agent Smith <span>network &amp; system performance</span></div>
+    <span class="spacer"></span>
+    <span class="ghost">Run bufferbloat test</span>
+  </div>
+
+  <div class="hero">
+    <div class="glow"></div>
+    <div class="state">● Healthy</div>
+    <h1>Everything looks good.</h1>
+    <p>Low, stable latency to the internet and no loss — great for gaming, video calls, remote dev, and AI workloads. No bottlenecks detected on your machine, Wi-Fi, LAN, or ISP.</p>
+    <div class="stats">
+      <div class="stat"><div class="n">13<span style="color:var(--dim);font-size:13px"> ms</span></div><div class="k">Latency</div></div>
+      <div class="stat"><div class="n">1.0<span style="color:var(--dim);font-size:13px"> ms</span></div><div class="k">Jitter</div></div>
+      <div class="stat"><div class="n">0.0<span style="color:var(--dim);font-size:13px"> %</span></div><div class="k">Loss</div></div>
+      <div class="stat"><div class="n" style="color:var(--grn)">A+</div><div class="k">Bufferbloat</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Round-trip time · last 5 min <span class="legend"><b style="color:var(--net)">— Internet</b><b style="color:var(--lan)">— LAN</b><b style="color:var(--isp)">— ISP hop</b></span></h3>
+    <svg id="chart" viewBox="0 0 840 160" width="100%" height="160" preserveAspectRatio="none"></svg>
+  </div>
+
+  <div class="card">
+    <h3>Path · gateway → ISP edge → internet</h3>
+    <div class="path">
+      <div class="node"><div class="lbl">Gateway · LAN</div><div class="v">0.6 ms</div><div class="ok">● healthy</div></div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="lbl">ISP hop</div><div class="v">11 ms</div><div class="ok">● healthy</div></div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="lbl">Internet</div><div class="v">13 ms</div><div class="ok">● healthy</div></div>
+    </div>
+  </div>
+
+  <div class="split">
+    <div class="card res">
+      <h3>System</h3>
+      <div class="r"><div class="top2"><span>CPU</span><b>22%</b></div><div class="track"><i style="width:22%"></i></div></div>
+      <div class="r"><div class="top2"><span>Memory <span class="mut">19.3 / 31.7 GB</span></span><b>61%</b></div><div class="track"><i style="width:61%"></i></div></div>
+      <div class="r"><div class="top2"><span>GPU</span><b>14%</b></div><div class="track"><i style="width:14%"></i></div></div>
+    </div>
+    <div class="card">
+      <h3>Active adapter</h3>
+      <div style="font-size:15px;font-weight:600">Ethernet</div>
+      <div style="color:var(--mut);margin-top:6px;font-size:12.5px;font-family:var(--mono)">Wired · 1 Gbps · MTU 1500<br>auto-detected egress · 0 NIC errors</div>
+      <div style="color:var(--mut);margin-top:12px;font-size:12px">DNS <b style="font-family:var(--mono);color:var(--txt)">12 ms</b> · fast</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Events</h3>
+    <div class="evlist">
+      <div class="e sel"><span class="badge red">CRITICAL</span><span class="h">Weak/unstable Wi-Fi (RSSI −83 dBm)</span><span class="t">14:31:09</span></div>
+      <div class="e"><span class="badge yel">DEGRADED</span><span class="h">Bufferbloat on ISP access link (grade D)</span><span class="t">14:22:41</span></div>
+    </div>
+    <div class="drawer">
+      <div class="means"><b>What this means:</b> the weak point is the Wi-Fi link between you and the router — before your traffic even leaves the house. A weak signal injects jitter and loss, showing up as stutter in real-time apps and slow, bursty transfers for downloads and AI syncs. A wired connection would remove it.</div>
+      <div class="mlist">
+        <div class="m"><span class="ml">Latency</span><span class="mv">96 ms</span><span class="r-FAIR">FAIR</span><span class="mt">noticeable delay</span></div>
+        <div class="m"><span class="ml">Jitter</span><span class="mv">34 ms</span><span class="r-POOR">POOR</span><span class="mt">stutter, choppy audio/video</span></div>
+        <div class="m"><span class="ml">Packet loss</span><span class="mv">4.2%</span><span class="r-POOR">POOR</span><span class="mt">stalls, retransmits</span></div>
+        <div class="m"><span class="ml">Wi-Fi signal</span><span class="mv">−83 dBm</span><span class="r-POOR">POOR</span><span class="mt">very weak — use Ethernet</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="footer">Mockup 3 — Premium minimal (Linear / Vercel / GlassWire inspired)</div>
+</div>
+<script>
+const N=60,W=840,H=160,pad=8;
+function gen(b,a,s){const r=[];for(let i=0;i<N;i++)r.push(b+a*(0.5+0.5*Math.sin(i/6+s))+((i*7+s*31)%5)*0.3);return r;}
+const net=gen(13,4,1),lan=gen(0.7,0.4,4),isp=gen(11,3,2),max=Math.max(...net,...isp)*1.25;
+const X=i=>pad+i*(W-2*pad)/(N-1),Y=v=>pad+(H-2*pad)*(1-v/max);
+const poly=a=>a.map((v,i)=>X(i)+","+Y(v).toFixed(1)).join(" ");
+const area=a=>"M"+poly(a).replace(/ /g," L")+` L${X(N-1)},${H-pad} L${X(0)},${H-pad} Z`;
+document.getElementById("chart").innerHTML=`
+ <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7c8cff" stop-opacity=".25"/><stop offset="1" stop-color="#7c8cff" stop-opacity="0"/></linearGradient></defs>
+ ${[.33,.66].map(f=>`<line x1="${pad}" x2="${W-pad}" y1="${pad+(H-2*pad)*f}" y2="${pad+(H-2*pad)*f}" stroke="#1e1f25"/>`).join("")}
+ <path d="${area(net)}" fill="url(#g)"/>
+ <polyline points="${poly(lan)}" fill="none" stroke="#3ddc97" stroke-width="1.5"/>
+ <polyline points="${poly(isp)}" fill="none" stroke="#c08bff" stroke-width="1.5"/>
+ <polyline points="${poly(net)}" fill="none" stroke="#7c8cff" stroke-width="2.25"/>`;
+</script>
+</body>
+</html>

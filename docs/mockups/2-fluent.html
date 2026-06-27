@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Agent Smith — Mockup 2 (Windows 11 Fluent)</title>
+<style>
+  :root{
+    --bg:#1f1f23; --card:#2a2a2e; --card2:#303034; --line:#3a3a40; --stroke:rgba(255,255,255,.06);
+    --txt:#f3f3f3; --mut:#a7a7ad; --acc:#60cdff; --accd:#4cc2ff;
+    --grn:#6ccb5f; --yel:#fce100; --red:#ff99a4;
+    --ui:"Segoe UI Variable","Segoe UI",-apple-system,sans-serif;
+    --mono:"Cascadia Code",Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:
+    radial-gradient(1200px 400px at 80% -10%, rgba(96,205,255,.10), transparent 60%),
+    var(--bg);color:var(--txt);font-family:var(--ui);font-size:14px}
+  .app{max-width:860px;margin:0 auto;padding:18px 20px 26px}
+  .top{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+  .title{font-size:20px;font-weight:600}
+  .title small{color:var(--mut);font-weight:400;font-size:13px;margin-left:8px}
+  .spacer{flex:1}
+  .seg{display:flex;background:var(--card);border:1px solid var(--stroke);border-radius:8px;padding:3px}
+  .seg button{border:0;background:transparent;color:var(--mut);padding:6px 14px;border-radius:6px;font:inherit;font-size:13px;cursor:pointer}
+  .seg button.on{background:var(--card2);color:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+  .card{background:var(--card);border:1px solid var(--stroke);border-radius:10px;box-shadow:0 1px 2px rgba(0,0,0,.25)}
+  .hero{display:flex;align-items:center;gap:18px;padding:20px 22px;margin-bottom:14px;
+    background:linear-gradient(135deg,rgba(108,203,95,.14),rgba(108,203,95,.03)),var(--card);border-color:rgba(108,203,95,.28)}
+  .check{width:52px;height:52px;border-radius:50%;background:rgba(108,203,95,.18);display:grid;place-items:center;flex:none}
+  .check svg{width:28px;height:28px;stroke:var(--grn)}
+  .hero h2{margin:0;font-size:20px;font-weight:600}
+  .hero p{margin:4px 0 0;color:var(--mut);font-size:13.5px}
+  .row{display:grid;grid-template-columns:1.25fr 1fr;gap:14px;margin-bottom:14px}
+  .ch{padding:14px 16px}
+  .ct{font-size:13px;color:var(--mut);font-weight:600;margin:0 0 12px}
+  /* gauges */
+  .gauges{display:flex;gap:10px;justify-content:space-between}
+  .g{flex:1;text-align:center}
+  .ring{width:78px;height:78px;border-radius:50%;margin:0 auto 8px;display:grid;place-items:center;
+    background:conic-gradient(var(--acc) calc(var(--p)*1%), var(--card2) 0)}
+  .ring .inner{width:60px;height:60px;border-radius:50%;background:var(--card);display:grid;place-items:center;font-family:var(--mono);font-weight:600;font-size:16px}
+  .g .lbl{color:var(--mut);font-size:12px}
+  .g .sub{color:var(--mut);font-size:10.5px;margin-top:2px}
+  /* path list */
+  .li{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--stroke)}
+  .li:first-child{border-top:0}
+  .li .nm{flex:1}
+  .li .nm small{color:var(--mut);font-family:var(--mono);font-size:11px;margin-left:6px}
+  .li .mv{font-family:var(--mono);font-size:14px}
+  .li .mini{width:90px;height:6px;background:var(--card2);border-radius:3px;overflow:hidden}
+  .li .mini i{display:block;height:100%;background:var(--grn);border-radius:3px}
+  .pillok{font-size:11px;color:var(--grn);background:rgba(108,203,95,.14);padding:2px 8px;border-radius:6px}
+  /* events */
+  .evrow{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--stroke)}
+  .evrow:first-child{border-top:0}
+  .ic{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;flex:none;font-size:16px}
+  .ic.red{background:rgba(255,153,164,.16)} .ic.yel{background:rgba(252,225,0,.14)}
+  .evrow .h{font-weight:600;font-size:13.5px} .evrow .s{color:var(--mut);font-size:12px;margin-top:2px}
+  .evrow .t{margin-left:auto;color:var(--mut);font-size:12px;text-align:right;white-space:nowrap}
+  .chev{color:var(--mut);font-size:18px;margin-left:8px}
+  .footer{color:var(--mut);font-size:11px;text-align:center;padding-top:16px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="title">Agent Smith <small>network &amp; system performance</small></div>
+    <span class="spacer"></span>
+    <div class="seg"><button class="on">Overview</button><button>Events</button><button>History</button></div>
+  </div>
+
+  <div class="card hero">
+    <div class="check"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+    <div>
+      <h2>Connection is healthy</h2>
+      <p>Internet 13 ms · jitter 1.0 ms · 0% loss · bufferbloat A+ — great for gaming, calls, and AI workloads.</p>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="card ch">
+      <p class="ct">Round-trip time · last 5 min</p>
+      <svg id="chart" viewBox="0 0 520 150" width="100%" height="150" preserveAspectRatio="none"></svg>
+      <div style="display:flex;gap:16px;color:var(--mut);font-size:11.5px;margin-top:8px">
+        <span><b style="color:var(--acc)">■</b> Internet</span><span><b style="color:var(--grn)">■</b> LAN</span><span><b style="color:#c9a3ff">■</b> ISP hop</span>
+      </div>
+    </div>
+    <div class="card ch">
+      <p class="ct">System</p>
+      <div class="gauges">
+        <div class="g"><div class="ring" style="--p:22;background:conic-gradient(var(--grn) 22%, var(--card2) 0)"><div class="inner">22%</div></div><div class="lbl">CPU</div></div>
+        <div class="g"><div class="ring" style="--p:61;background:conic-gradient(var(--acc) 61%, var(--card2) 0)"><div class="inner">61%</div></div><div class="lbl">Memory</div><div class="sub">19.3/31.7 GB</div></div>
+        <div class="g"><div class="ring" style="--p:14;background:conic-gradient(var(--grn) 14%, var(--card2) 0)"><div class="inner">14%</div></div><div class="lbl">GPU</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card ch" style="margin-bottom:14px">
+    <p class="ct">Path · gateway → ISP edge → internet &nbsp;<span style="color:#6ccb5f">●</span> <span style="color:var(--mut);font-weight:400">adapter: Ethernet · 1 Gbps</span></p>
+    <div class="li"><div class="nm">Gateway <small>192.168.1.1</small></div><div class="mini"><i style="width:5%"></i></div><div class="mv">0.6 ms</div><span class="pillok">LAN OK</span></div>
+    <div class="li"><div class="nm">ISP hop <small>67.59.x</small></div><div class="mini"><i style="width:20%"></i></div><div class="mv">11 ms</div><span class="pillok">OK</span></div>
+    <div class="li"><div class="nm">Cloudflare <small>1.1.1.1</small></div><div class="mini"><i style="width:24%"></i></div><div class="mv">12 ms</div><span class="pillok">OK</span></div>
+    <div class="li"><div class="nm">Google <small>8.8.8.8</small></div><div class="mini"><i style="width:26%"></i></div><div class="mv">13 ms</div><span class="pillok">OK</span></div>
+  </div>
+
+  <div class="card">
+    <p class="ct" style="padding:14px 16px 0">Recent events</p>
+    <div class="evrow"><div class="ic red">📶</div><div><div class="h">Weak/unstable Wi-Fi (RSSI −83 dBm)</div><div class="s">Wi-Fi link injecting jitter &amp; loss · net 96 ms · loss 4.2%</div></div><div class="t">14:31:09<br>Critical</div><span class="chev">›</span></div>
+    <div class="evrow"><div class="ic yel">🛰️</div><div><div class="h">Bufferbloat on ISP access link (grade D)</div><div class="s">Latency +220 ms under load · fix with router SQM</div></div><div class="t">14:22:41<br>Degraded</div><span class="chev">›</span></div>
+  </div>
+  <div class="footer">Mockup 2 — Windows 11 Fluent (native look: Task Manager / Settings inspired)</div>
+</div>
+<script>
+const N=60,W=520,H=150,pad=8;
+function gen(b,a,s){const r=[];for(let i=0;i<N;i++)r.push(b+a*(0.5+0.5*Math.sin(i/6+s))+((i*7+s*31)%5)*0.3);return r;}
+const net=gen(13,4,1),lan=gen(0.7,0.4,4),isp=gen(11,3,2),max=Math.max(...net,...isp)*1.25;
+const X=i=>pad+i*(W-2*pad)/(N-1),Y=v=>pad+(H-2*pad)*(1-v/max);
+const poly=a=>a.map((v,i)=>X(i)+","+Y(v).toFixed(1)).join(" ");
+const area=a=>"M"+poly(a).replace(/ /g," L")+` L${X(N-1)},${H-pad} L${X(0)},${H-pad} Z`;
+document.getElementById("chart").innerHTML=`
+ <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#60cdff" stop-opacity=".28"/><stop offset="1" stop-color="#60cdff" stop-opacity="0"/></linearGradient></defs>
+ ${[.33,.66].map(f=>`<line x1="${pad}" x2="${W-pad}" y1="${pad+(H-2*pad)*f}" y2="${pad+(H-2*pad)*f}" stroke="#ffffff14"/>`).join("")}
+ <path d="${area(net)}" fill="url(#g)"/>
+ <polyline points="${poly(lan)}" fill="none" stroke="#6ccb5f" stroke-width="1.5"/>
+ <polyline points="${poly(isp)}" fill="none" stroke="#c9a3ff" stroke-width="1.5"/>
+ <polyline points="${poly(net)}" fill="none" stroke="#60cdff" stroke-width="2"/>`;
+</script>
+</body>
+</html>

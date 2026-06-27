@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Agent Smith — Mockup 1 (Ops / Grafana)</title>
+<style>
+  :root{
+    --bg:#0b0c0e; --panel:#15171c; --panel2:#1b1e24; --line:#262a31;
+    --txt:#e6e8eb; --mut:#8b929c; --net:#4f8cff; --lan:#34d399; --isp:#c084fc;
+    --grn:#34d399; --yel:#fbbf24; --red:#f87171;
+    --mono:"JetBrains Mono","Cascadia Code",Consolas,monospace;
+    --ui:"Inter",-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--ui);font-size:13px;}
+  .app{max-width:880px;margin:0 auto;padding:14px 16px 24px;}
+  /* header */
+  .top{display:flex;align-items:center;gap:12px;padding:6px 2px 14px;}
+  .logo{font-weight:800;letter-spacing:.5px;font-size:15px;color:#fff;display:flex;align-items:center;gap:8px}
+  .logo .glyph{color:var(--isp)}
+  .sub{color:var(--mut);font-size:12px}
+  .spacer{flex:1}
+  .pill{display:inline-flex;align-items:center;gap:7px;background:rgba(52,211,153,.12);color:var(--grn);
+    border:1px solid rgba(52,211,153,.3);padding:5px 11px;border-radius:999px;font-weight:600;font-size:12px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--grn);box-shadow:0 0 8px var(--grn)}
+  /* stat tiles */
+  .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px}
+  .tile{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+  .tile .k{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.6px}
+  .tile .v{font-family:var(--mono);font-size:26px;font-weight:600;margin-top:6px;line-height:1}
+  .tile .u{font-size:13px;color:var(--mut);font-weight:400}
+  .tile .t{font-size:11px;margin-top:5px}
+  .good{color:var(--grn)} .warn{color:var(--yel)} .bad{color:var(--red)}
+  /* panels */
+  .grid{display:grid;grid-template-columns:1fr;gap:10px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;}
+  .ph{display:flex;align-items:center;gap:8px;padding:9px 14px;border-bottom:1px solid var(--line);font-size:12px;color:var(--mut);font-weight:600;letter-spacing:.3px}
+  .ph .legend{margin-left:auto;display:flex;gap:14px;font-weight:500}
+  .ph .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:middle}
+  .pb{padding:10px 12px}
+  /* table */
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{color:var(--mut);text-align:right;font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:6px 10px}
+  th.l,td.l{text-align:left}
+  td{padding:7px 10px;font-family:var(--mono);text-align:right;border-top:1px solid var(--line)}
+  td.l{font-family:var(--ui)}
+  .ring{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:8px;vertical-align:middle}
+  .tag{font-family:var(--ui);font-size:10px;color:var(--mut);background:var(--panel2);border:1px solid var(--line);padding:2px 7px;border-radius:5px}
+  /* resources bars */
+  .res{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:14px}
+  .res .r .top2{display:flex;justify-content:space-between;font-size:12px;margin-bottom:7px}
+  .res .r .lbl{color:var(--mut)} .res .r .pct{font-family:var(--mono);font-weight:600}
+  .bar{height:7px;border-radius:4px;background:var(--panel2);overflow:hidden}
+  .bar > i{display:block;height:100%;border-radius:4px}
+  .two{display:grid;grid-template-columns:1.3fr 1fr;gap:10px}
+  /* events */
+  .ev{display:flex;gap:10px;padding:9px 12px;border-top:1px solid var(--line);cursor:default}
+  .ev:first-child{border-top:none}
+  .ev.sel{background:rgba(79,140,255,.07)}
+  .sev{width:3px;border-radius:3px;flex:none}
+  .ev .meta{flex:1;min-width:0}
+  .ev .h{font-size:12.5px;font-weight:600}
+  .ev .l2{color:var(--mut);font-size:11.5px;margin-top:2px;font-family:var(--mono)}
+  .ev .time{color:var(--mut);font-size:11px;font-family:var(--mono);white-space:nowrap}
+  .footer{color:var(--mut);font-size:11px;text-align:center;padding-top:14px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="logo"><span class="glyph">◈</span> AGENT&nbsp;SMITH</div>
+    <span class="sub">network &amp; system performance</span>
+    <span class="spacer"></span>
+    <span class="pill"><span class="dot"></span> OPERATIONAL</span>
+  </div>
+
+  <div class="tiles">
+    <div class="tile"><div class="k">Latency</div><div class="v good">13<span class="u"> ms</span></div><div class="t good">Excellent · feels instant</div></div>
+    <div class="tile"><div class="k">Jitter</div><div class="v good">1.0<span class="u"> ms</span></div><div class="t good">Very stable</div></div>
+    <div class="tile"><div class="k">Packet loss</div><div class="v good">0.0<span class="u"> %</span></div><div class="t good">No loss</div></div>
+    <div class="tile"><div class="k">Bufferbloat</div><div class="v good">A+</div><div class="t good">Flat under load</div></div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <div class="ph">ROUND-TRIP TIME · last 5 min
+        <span class="legend"><span><i style="background:var(--net)"></i>Internet</span><span><i style="background:var(--lan)"></i>LAN</span><span><i style="background:var(--isp)"></i>ISP hop</span></span>
+      </div>
+      <div class="pb"><svg id="chart" viewBox="0 0 840 170" width="100%" height="170" preserveAspectRatio="none"></svg></div>
+    </div>
+
+    <div class="two">
+      <div class="panel">
+        <div class="ph">PATH · concentric rings</div>
+        <table>
+          <thead><tr><th class="l">Target</th><th>avg</th><th>p95</th><th>jitter</th><th>loss</th></tr></thead>
+          <tbody>
+            <tr><td class="l"><span class="ring" style="background:var(--lan)"></span>Gateway <span class="tag">192.168.1.1</span></td><td class="good">0.6</td><td>1.2</td><td>0.1</td><td class="good">0%</td></tr>
+            <tr><td class="l"><span class="ring" style="background:var(--isp)"></span>ISP hop <span class="tag">67.59.x</span></td><td class="good">11</td><td>15</td><td>0.9</td><td class="good">0%</td></tr>
+            <tr><td class="l"><span class="ring" style="background:var(--net)"></span>Cloudflare <span class="tag">1.1.1.1</span></td><td class="good">12</td><td>16</td><td>1.0</td><td class="good">0%</td></tr>
+            <tr><td class="l"><span class="ring" style="background:var(--net)"></span>Google <span class="tag">8.8.8.8</span></td><td class="good">13</td><td>16</td><td>1.1</td><td class="good">0%</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel">
+        <div class="ph">SYSTEM</div>
+        <div class="res" style="grid-template-columns:1fr">
+          <div class="r"><div class="top2"><span class="lbl">CPU</span><span class="pct good">22%</span></div><div class="bar"><i style="width:22%;background:var(--grn)"></i></div></div>
+          <div class="r"><div class="top2"><span class="lbl">Memory <span class="tag">19.3 / 31.7 GB</span></span><span class="pct good">61%</span></div><div class="bar"><i style="width:61%;background:var(--grn)"></i></div></div>
+          <div class="r"><div class="top2"><span class="lbl">GPU</span><span class="pct good">14%</span></div><div class="bar"><i style="width:14%;background:var(--grn)"></i></div></div>
+          <div class="r"><div class="top2"><span class="lbl">Network</span><span class="pct">↓ 0.4 / ↑ 0.2 Mbps</span></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph">EVENTS · click to drill down</div>
+      <div class="ev sel"><div class="sev" style="background:var(--red)"></div>
+        <div class="meta"><div class="h">Weak/unstable Wi-Fi (RSSI −83 dBm)</div>
+        <div class="l2">net 96ms · jitter 34ms · loss 4.2% · GPU 82% · Wi-Fi −83dBm</div></div>
+        <div class="time">14:31:09<br>CRITICAL</div></div>
+      <div class="ev"><div class="sev" style="background:var(--yel)"></div>
+        <div class="meta"><div class="h">Bufferbloat on access link (grade D, +220 ms)</div>
+        <div class="l2">net 18ms · idle→loaded +220ms · gw 0.6ms · CPU 22%</div></div>
+        <div class="time">14:22:41<br>DEGRADED</div></div>
+    </div>
+  </div>
+  <div class="footer">Mockup 1 — Ops dashboard (Grafana / Datadog inspired)</div>
+</div>
+<script>
+const N=60, W=840, H=170, pad=8;
+function gen(base,amp,seed){const a=[];for(let i=0;i<N;i++){a.push(base+amp*(0.5+0.5*Math.sin(i/6+seed))+((i*7+seed*31)%5)*0.3);}return a;}
+const net=gen(13,4,1), lan=gen(0.7,0.4,4), isp=gen(11,3,2);
+const max=Math.max(...net,...isp)*1.25;
+function X(i){return pad+i*(W-2*pad)/(N-1);}
+function Y(v){return pad+(H-2*pad)*(1-v/max);}
+function poly(a){return a.map((v,i)=>X(i)+","+Y(v).toFixed(1)).join(" ");}
+function area(a){return "M"+poly(a).replace(/ /g," L")+` L${X(N-1)},${H-pad} L${X(0)},${H-pad} Z`;}
+const svg=document.getElementById("chart");
+svg.innerHTML=`
+  <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+   <stop offset="0" stop-color="#4f8cff" stop-opacity="0.30"/><stop offset="1" stop-color="#4f8cff" stop-opacity="0"/></linearGradient></defs>
+  ${[0.25,0.5,0.75].map(f=>`<line x1="${pad}" x2="${W-pad}" y1="${pad+(H-2*pad)*f}" y2="${pad+(H-2*pad)*f}" stroke="#262a31"/>`).join("")}
+  <path d="${area(net)}" fill="url(#g)"/>
+  <polyline points="${poly(lan)}" fill="none" stroke="#34d399" stroke-width="1.5"/>
+  <polyline points="${poly(isp)}" fill="none" stroke="#c084fc" stroke-width="1.5"/>
+  <polyline points="${poly(net)}" fill="none" stroke="#4f8cff" stroke-width="2"/>
+  <text x="${W-pad}" y="${Y(max*0.96)}" fill="#8b929c" font-size="10" text-anchor="end">${Math.round(max)} ms</text>`;
+</script>
+</body>
+</html>
