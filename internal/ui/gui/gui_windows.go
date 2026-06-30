@@ -8,8 +8,11 @@
 package gui
 
 import (
+	"bytes"
 	"context"
+	_ "embed"
 	"fmt"
+	"image/png"
 	"strings"
 	"time"
 	"unsafe"
@@ -46,6 +49,22 @@ var (
 	bgBrush    = decl.SolidColorBrush{Color: cBg}
 	panelBrush = decl.SolidColorBrush{Color: cPanel}
 )
+
+//go:embed app.png
+var appPNG []byte
+
+// loadAppIcon decodes the embedded Matrix-themed icon for the window and tray.
+func loadAppIcon() *walk.Icon {
+	im, err := png.Decode(bytes.NewReader(appPNG))
+	if err != nil {
+		return nil
+	}
+	ic, err := walk.NewIconFromImage(im)
+	if err != nil {
+		return nil
+	}
+	return ic
+}
 
 const (
 	maxRows   = 4
@@ -96,10 +115,17 @@ type scaledLabel struct {
 }
 
 type ui struct {
-	mw   *walk.MainWindow
-	eng  *engine.Engine
-	ctx  context.Context
-	tray *walk.NotifyIcon
+	mw      *walk.MainWindow
+	eng     *engine.Engine
+	ctx     context.Context
+	tray    *walk.NotifyIcon
+	appIcon *walk.Icon
+
+	// collapsible sections (chart, path, system, events)
+	secHdrW    [4]*walk.CustomWidget
+	secContent [4]*walk.Composite
+	secOpen    [4]bool
+	secTitle   [4]string
 
 	statusPill *walk.Label
 	verdict    *walk.Label
@@ -128,8 +154,8 @@ type ui struct {
 	scaleFonts []*walk.Font
 
 	// cached GDI objects
-	smallFont, monoFont               *walk.Font
-	brushPanel, brushTrack            *walk.SolidColorBrush
+	smallFont, monoFont, hdrFont      *walk.Font
+	brushPanel, brushTrack, brushBg   *walk.SolidColorBrush
 	brushGreen, brushYellow, brushRed *walk.SolidColorBrush
 	penGrid, penNet, penGw, penIsp    *walk.CosmeticPen
 }
@@ -137,6 +163,7 @@ type ui struct {
 // Run builds and runs the GUI.
 func Run(ctx context.Context, e *engine.Engine) error {
 	u := &ui{eng: e, ctx: ctx, fontScale: 1.0}
+	u.appIcon = loadAppIcon()
 
 	mono := decl.Font{Family: "Consolas", PointSize: 9}
 	hdr := decl.Font{Family: "Segoe UI", PointSize: 8, Bold: true}
@@ -190,19 +217,30 @@ func Run(ctx context.Context, e *engine.Engine) error {
 		)
 	}
 
-	legend := func(text string, col walk.Color) decl.Label {
-		return decl.Label{Text: text, TextColor: col, Font: decl.Font{Family: "Segoe UI", PointSize: 8}, Background: panelBrush}
+	// Collapsible section header. walk mis-measures plain Labels here and clips
+	// them, so render the header text in a CustomWidget (DrawText is reliable).
+	secHeader := func(i int, title, tip string) decl.CustomWidget {
+		u.secTitle[i] = title
+		u.secOpen[i] = true
+		return decl.CustomWidget{
+			AssignTo:    &u.secHdrW[i],
+			MinSize:     decl.Size{Width: 200, Height: 22},
+			ToolTipText: tip,
+			PaintPixels: func(c *walk.Canvas, _ walk.Rectangle) error { return u.paintHeader(i, c) },
+			OnMouseDown: func(x, y int, b walk.MouseButton) { u.toggleSection(i) },
+		}
 	}
 
 	err := (decl.MainWindow{
 		AssignTo:   &u.mw,
 		Title:      "Agent Smith — network & system performance monitor",
+		Icon:       u.appIcon,
 		Background: bgBrush,
-		MinSize:    decl.Size{Width: 760, Height: 820},
+		MinSize:    decl.Size{Width: 760, Height: 560},
 		Size:       decl.Size{Width: 780, Height: 980},
-		Layout:     decl.VBox{Margins: mg(14, 12, 14, 12), Spacing: 10},
+		Layout:     decl.VBox{Margins: mg(14, 12, 14, 12), Spacing: 8},
 		Children: []decl.Widget{
-			// Header.
+			// Header (always visible).
 			decl.Composite{
 				Background: bgBrush,
 				Layout:     decl.HBox{MarginsZero: true, Spacing: 8},
@@ -217,56 +255,46 @@ func Run(ctx context.Context, e *engine.Engine) error {
 			decl.Label{AssignTo: &u.verdict, Text: "Starting Agent Smith…", TextColor: cSub, Background: bgBrush, MaxSize: decl.Size{Width: 740},
 				ToolTipText: "Current conclusion and recommended fix, if any."},
 
-			// Stat tiles.
+			// Stat tiles (always visible).
 			decl.Composite{Background: bgBrush, Layout: decl.Grid{Columns: 4, Spacing: 10, MarginsZero: true}, Children: tileWidgets},
 
-			// RTT chart panel.
-			decl.Composite{
-				Background: panelBrush,
-				Layout:     decl.VBox{Margins: mg(0, 0, 0, 0), Spacing: 0},
-				Children: []decl.Widget{
-					decl.Composite{Background: panelBrush, Layout: decl.HBox{Margins: mg(14, 9, 14, 6), Spacing: 12}, Children: []decl.Widget{
-						decl.Label{Text: "ROUND-TRIP TIME · last 5 min", TextColor: cSub, Font: hdr, Background: panelBrush},
-						decl.HSpacer{},
-						legend("■ Internet", cNet), legend("■ LAN", cLan), legend("■ ISP hop", cIsp),
-					}},
-					decl.CustomWidget{AssignTo: &u.spark, MinSize: decl.Size{Width: 320, Height: 150}, StretchFactor: 2, PaintPixels: u.paintSpark,
-						ToolTipText: "RTT over time. Blue = Internet, green = LAN, purple = ISP hop. Ctrl+wheel resizes text."},
-				},
-			},
-
-			// Middle row: path | system.
-			decl.Composite{Background: bgBrush, Layout: decl.Grid{Columns: 2, Spacing: 10, MarginsZero: true}, Children: []decl.Widget{
-				decl.Composite{Background: panelBrush, Layout: decl.VBox{Margins: mg(14, 9, 14, 10), Spacing: 6}, Children: []decl.Widget{
-					decl.Label{Text: "PATH · concentric rings", TextColor: cSub, Font: hdr, Background: panelBrush,
-						ToolTipText: "Each ring pinged separately; a problem that starts at a ring and persists outward is introduced there."},
-					decl.Composite{Background: panelBrush, Layout: decl.Grid{Columns: 6, Spacing: 5, MarginsZero: true}, Children: ringChildren},
-				}},
-				decl.Composite{Background: panelBrush, Layout: decl.VBox{Margins: mg(14, 9, 14, 10), Spacing: 6}, Children: []decl.Widget{
-					decl.Label{Text: "SYSTEM", TextColor: cSub, Font: hdr, Background: panelBrush,
-						ToolTipText: "Local CPU, memory and GPU load plus throughput. A saturated machine looks like network lag."},
-					decl.CustomWidget{AssignTo: &u.sysBars, MinSize: decl.Size{Width: 200, Height: 150}, StretchFactor: 1, PaintPixels: u.paintSysBars},
-				}},
+			// Section 0: RTT chart.
+			secHeader(0, "ROUND-TRIP TIME", "RTT to the gateway, ISP edge and internet over the last 5 minutes. Click to collapse / expand."),
+			decl.Composite{AssignTo: &u.secContent[0], Background: panelBrush, Layout: decl.VBox{MarginsZero: true}, StretchFactor: 2, Children: []decl.Widget{
+				decl.CustomWidget{AssignTo: &u.spark, MinSize: decl.Size{Width: 320, Height: 150}, StretchFactor: 2, PaintPixels: u.paintSpark,
+					ToolTipText: "RTT over time. Blue = Internet, green = LAN, purple = ISP hop. Ctrl+wheel resizes text."},
 			}},
 
-			// Events.
-			decl.Label{Text: "EVENTS · click to drill down", TextColor: cSub, Font: hdr, Background: bgBrush,
-				ToolTipText: "Each detected problem, with the exact degraded metrics, what it means, and a process snapshot. Persists across sessions."},
-			decl.TableView{
-				AssignTo: &u.issueTable, Background: panelBrush, ColumnsSizable: true, LastColumnStretched: true,
-				MinSize: decl.Size{Width: 320, Height: 110}, StretchFactor: 1,
-				Columns: []decl.TableViewColumn{
-					{Title: "Time", DataMember: "When", Width: 80},
-					{Title: "Severity", DataMember: "Severity", Width: 90},
-					{Title: "Where", DataMember: "Culprit", Width: 120},
-					{Title: "Issue", DataMember: "Issue", Width: 300},
-				},
-				OnCurrentIndexChanged: u.showIssueDetail,
-				StyleCell:             u.styleIssueCell,
-			},
-			decl.TextEdit{AssignTo: &u.issueDetail, ReadOnly: true, Background: panelBrush, TextColor: cText, Font: mono, VScroll: true,
-				MinSize: decl.Size{Width: 320, Height: 150}, StretchFactor: 1},
+			// Section 1: Path.
+			secHeader(1, "PATH", "Concentric rings: LAN gateway → ISP edge → internet. A problem that starts at a ring and persists outward is introduced there. Click to collapse / expand."),
+			decl.Composite{AssignTo: &u.secContent[1], Background: panelBrush, Layout: decl.Grid{Columns: 6, Spacing: 5, Margins: mg(14, 10, 14, 10)}, Children: ringChildren},
 
+			// Section 2: System.
+			secHeader(2, "SYSTEM", "Local CPU, memory and GPU load plus throughput. A saturated machine looks like network lag. Click to collapse / expand."),
+			decl.Composite{AssignTo: &u.secContent[2], Background: panelBrush, Layout: decl.VBox{Margins: mg(12, 10, 12, 10)}, Children: []decl.Widget{
+				decl.CustomWidget{AssignTo: &u.sysBars, MinSize: decl.Size{Width: 200, Height: 132}, PaintPixels: u.paintSysBars},
+			}},
+
+			// Section 3: Events.
+			secHeader(3, "EVENTS", "Each detected problem with the degraded metrics, what it means, and a process snapshot. Click a row to drill in. Click this header to collapse / expand."),
+			decl.Composite{AssignTo: &u.secContent[3], Background: panelBrush, Layout: decl.VBox{MarginsZero: true, Spacing: 0}, StretchFactor: 2, Children: []decl.Widget{
+				decl.TableView{
+					AssignTo: &u.issueTable, Background: panelBrush, ColumnsSizable: true, LastColumnStretched: true,
+					MinSize: decl.Size{Width: 320, Height: 110}, StretchFactor: 1,
+					Columns: []decl.TableViewColumn{
+						{Title: "Time", Width: 80},
+						{Title: "Severity", Width: 90},
+						{Title: "Where", Width: 120},
+						{Title: "Issue", Width: 300},
+					},
+					OnCurrentIndexChanged: u.showIssueDetail,
+					StyleCell:             u.styleIssueCell,
+				},
+				decl.TextEdit{AssignTo: &u.issueDetail, ReadOnly: true, Background: panelBrush, TextColor: cText, Font: mono, VScroll: true,
+					MinSize: decl.Size{Width: 320, Height: 150}, StretchFactor: 1},
+			}},
+
+			// Actions (always visible).
 			decl.Composite{Background: bgBrush, Layout: decl.HBox{MarginsZero: true, Spacing: 8}, Children: []decl.Widget{
 				decl.PushButton{AssignTo: &u.bbButton, Text: "Run Bufferbloat Test", OnClicked: u.onBufferbloat,
 					ToolTipText: "Saturate your download for ~10 s and grade the added latency."},
@@ -408,7 +436,9 @@ func (u *ui) applyFontScale() {
 func (u *ui) initGDI() {
 	u.smallFont, _ = walk.NewFont("Segoe UI", 8, 0)
 	u.monoFont, _ = walk.NewFont("Consolas", 9, 0)
+	u.hdrFont, _ = walk.NewFont("Segoe UI", 9, walk.FontBold)
 	u.brushPanel, _ = walk.NewSolidColorBrush(cPanel)
+	u.brushBg, _ = walk.NewSolidColorBrush(cBg)
 	u.brushTrack, _ = walk.NewSolidColorBrush(cPanel2)
 	u.brushGreen, _ = walk.NewSolidColorBrush(cGreen)
 	u.brushYellow, _ = walk.NewSolidColorBrush(cYellow)
@@ -420,7 +450,7 @@ func (u *ui) initGDI() {
 }
 
 func (u *ui) disposeGDI() {
-	objs := []interface{ Dispose() }{u.smallFont, u.monoFont, u.brushPanel, u.brushTrack, u.brushGreen, u.brushYellow, u.brushRed, u.penGrid, u.penNet, u.penGw, u.penIsp}
+	objs := []interface{ Dispose() }{u.smallFont, u.monoFont, u.hdrFont, u.brushPanel, u.brushBg, u.brushTrack, u.brushGreen, u.brushYellow, u.brushRed, u.penGrid, u.penNet, u.penGw, u.penIsp}
 	for _, f := range u.scaleFonts {
 		objs = append(objs, f)
 	}
@@ -438,7 +468,9 @@ func (u *ui) setupTray() error {
 	}
 	u.tray = ni
 	ni.SetToolTip("Agent Smith")
-	if ic := walk.IconApplication(); ic != nil {
+	if u.appIcon != nil {
+		ni.SetIcon(u.appIcon)
+	} else if ic := walk.IconApplication(); ic != nil {
 		ni.SetIcon(ic)
 	}
 	ni.SetVisible(true)
@@ -461,6 +493,34 @@ func (u *ui) setupTray() error {
 }
 
 func (u *ui) showWindow() { u.mw.Show(); u.mw.Activate() }
+
+// paintHeader draws a collapsible section header (chevron + title).
+func (u *ui) paintHeader(i int, canvas *walk.Canvas) error {
+	if u.brushBg == nil || u.secHdrW[i] == nil {
+		return nil
+	}
+	cb := u.secHdrW[i].ClientBoundsPixels()
+	canvas.FillRectanglePixels(u.brushBg, walk.Rectangle{X: 0, Y: 0, Width: cb.Width, Height: cb.Height})
+	chev := "▾"
+	if !u.secOpen[i] {
+		chev = "▸"
+	}
+	if u.hdrFont != nil {
+		canvas.DrawTextPixels(chev+"  "+u.secTitle[i], u.hdrFont, cText,
+			walk.Rectangle{X: 2, Y: 0, Width: cb.Width - 2, Height: cb.Height}, walk.TextLeft|walk.TextVCenter|walk.TextSingleLine)
+	}
+	return nil
+}
+
+// toggleSection collapses or expands a section's content and updates its chevron.
+func (u *ui) toggleSection(i int) {
+	if i < 0 || i >= len(u.secContent) || u.secContent[i] == nil {
+		return
+	}
+	u.secOpen[i] = !u.secOpen[i]
+	u.secContent[i].SetVisible(u.secOpen[i])
+	u.secHdrW[i].Invalidate()
+}
 
 func (u *ui) consume(ctx context.Context) {
 	ch := u.eng.Subscribe()
@@ -728,8 +788,8 @@ func (u *ui) paintSpark(canvas *walk.Canvas, _ walk.Rectangle) error {
 	}
 	max *= 1.2
 
-	const pad = 8
-	plotW, plotH := W-2*pad, H-2*pad
+	const pad, legendH = 8, 16
+	plotW, plotH := W-2*pad, H-2*pad-legendH
 	if plotW < 4 || plotH < 4 || len(net) < 2 {
 		return nil
 	}
@@ -781,6 +841,13 @@ func (u *ui) paintSpark(canvas *walk.Canvas, _ walk.Rectangle) error {
 	draw(gw, u.penGw)
 	draw(isp, u.penIsp)
 	draw(net, u.penNet)
+
+	if u.smallFont != nil {
+		ly := H - legendH + 2
+		canvas.DrawTextPixels("● Internet", u.smallFont, cNet, walk.Rectangle{X: pad, Y: ly, Width: 90, Height: 12}, walk.TextLeft|walk.TextSingleLine)
+		canvas.DrawTextPixels("● LAN", u.smallFont, cLan, walk.Rectangle{X: pad + 96, Y: ly, Width: 60, Height: 12}, walk.TextLeft|walk.TextSingleLine)
+		canvas.DrawTextPixels("● ISP hop", u.smallFont, cIsp, walk.Rectangle{X: pad + 160, Y: ly, Width: 90, Height: 12}, walk.TextLeft|walk.TextSingleLine)
+	}
 	return nil
 }
 
