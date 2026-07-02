@@ -15,6 +15,7 @@ import (
 	"github.com/NYBaywatch/agent-smith/internal/bufferbloat"
 	"github.com/NYBaywatch/agent-smith/internal/classifier"
 	"github.com/NYBaywatch/agent-smith/internal/dnsprobe"
+	"github.com/NYBaywatch/agent-smith/internal/ispinfo"
 	"github.com/NYBaywatch/agent-smith/internal/metrics"
 	"github.com/NYBaywatch/agent-smith/internal/model"
 	"github.com/NYBaywatch/agent-smith/internal/netinfo"
@@ -69,15 +70,17 @@ type Engine struct {
 	pinger probe.Pinger
 	sys    *sysinfo.Collector
 
-	mu      sync.RWMutex
-	windows map[string]*metrics.Window // keyed by host
-	gateway *Target
-	ispHop  *Target
-	netInfo *netinfo.Info
-	dns     dnsprobe.Result
-	lastBB  *bufferbloat.Result
-	latest  model.Snapshot
-	subs    []chan model.Snapshot
+	mu         sync.RWMutex
+	windows    map[string]*metrics.Window // keyed by host
+	gateway    *Target
+	ispHop     *Target
+	netInfo    *netinfo.Info
+	dns        dnsprobe.Result
+	dnsServers []dnsprobe.ServerResult
+	conn       *ispinfo.Info
+	lastBB     *bufferbloat.Result
+	latest     model.Snapshot
+	subs       []chan model.Snapshot
 
 	// session history + issue log (persisted)
 	history      []model.HistPoint
@@ -134,11 +137,14 @@ func (e *Engine) Run(ctx context.Context) error {
 	e.refreshTopology(ctx)
 	e.refreshDNS(ctx)
 
+	go e.refreshISP(ctx) // one-off at startup (network call)
+
 	var wg sync.WaitGroup
-	wg.Add(4)
+	wg.Add(5)
 	go func() { defer wg.Done(); e.probeLoop(ctx) }()
 	go func() { defer wg.Done(); e.periodic(ctx, e.cfg.TopologyInterval, e.refreshTopology) }()
 	go func() { defer wg.Done(); e.periodic(ctx, e.cfg.DNSInterval, e.refreshDNS) }()
+	go func() { defer wg.Done(); e.periodic(ctx, time.Hour, e.refreshISP) }()
 	go func() { defer wg.Done(); e.periodic(ctx, 30*time.Second, func(context.Context) { e.save() }) }()
 
 	<-ctx.Done()
@@ -418,6 +424,8 @@ func (e *Engine) buildSnapshot(sys sysinfo.Stats) model.Snapshot {
 		Net:         e.netInfo,
 		Sys:         sys,
 		DNS:         e.dns,
+		DNSServers:  e.dnsServers,
+		Conn:        e.conn,
 		Bufferbloat: e.lastBB,
 	}
 
@@ -481,8 +489,36 @@ func (e *Engine) refreshTopology(ctx context.Context) {
 
 func (e *Engine) refreshDNS(ctx context.Context) {
 	res := dnsprobe.Measure(ctx, nil, 2*time.Second)
+
+	// Probe individual resolvers directly for comparison: the system default,
+	// public resolvers, and the LAN gateway (many routers run a DNS forwarder).
+	servers := []dnsprobe.Server{
+		{Name: "System (configured)", Addr: ""},
+		{Name: "Cloudflare", Addr: "1.1.1.1:53"},
+		{Name: "Google", Addr: "8.8.8.8:53"},
+	}
+	e.mu.RLock()
+	gw := e.gateway
+	e.mu.RUnlock()
+	if gw != nil {
+		servers = append(servers, dnsprobe.Server{Name: "Gateway", Addr: net.JoinHostPort(gw.Host, "53")})
+	}
+	perServer := dnsprobe.MeasureServers(ctx, servers, nil, 2*time.Second)
+
 	e.mu.Lock()
 	e.dns = res
+	e.dnsServers = perServer
+	e.mu.Unlock()
+}
+
+// refreshISP looks up the public IP / ISP / ASN (best effort).
+func (e *Engine) refreshISP(ctx context.Context) {
+	info, err := ispinfo.Fetch(ctx)
+	if err != nil {
+		return
+	}
+	e.mu.Lock()
+	e.conn = info
 	e.mu.Unlock()
 }
 

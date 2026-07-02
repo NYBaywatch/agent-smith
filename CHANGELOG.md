@@ -6,6 +6,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **Connection panel** — public IP, ISP, plan/org, network **ASN** (the network's
+  "service number"), geo-location, connection type, and reverse DNS, via a geo-IP
+  lookup at startup (refreshed hourly). New `internal/ispinfo` package.
+- **Per-resolver DNS monitoring** — measures resolution latency against each
+  resolver *directly* (system/configured, Cloudflare, Google, and the LAN gateway)
+  so a slow configured resolver stands out. New DNS comparison section.
+
 ### Changed
 - **Redesigned the dashboard in an ops/Grafana style** (chosen from 3 mockups in
   `docs/mockups/`): big stat tiles (latency/jitter/loss/bufferbloat), an

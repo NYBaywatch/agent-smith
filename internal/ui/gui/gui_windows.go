@@ -121,11 +121,16 @@ type ui struct {
 	tray    *walk.NotifyIcon
 	appIcon *walk.Icon
 
-	// collapsible sections (chart, path, system, events)
-	secHdrW    [4]*walk.CustomWidget
-	secContent [4]*walk.Composite
-	secOpen    [4]bool
-	secTitle   [4]string
+	// collapsible sections (chart, path, connection, system, dns, events)
+	secHdrW    [6]*walk.CustomWidget
+	secContent [6]*walk.Composite
+	secOpen    [6]bool
+	secTitle   [6]string
+
+	// connection panel
+	connISP, connOrg, connIP, connASN, connLoc, connType, connRDNS *walk.Label
+	// dns per-resolver rows
+	dnsRows [4]struct{ name, addr, avg, status *walk.Label }
 
 	statusPill *walk.Label
 	verdict    *walk.Label
@@ -217,6 +222,35 @@ func Run(ctx context.Context, e *engine.Engine) error {
 		)
 	}
 
+	// Connection panel (ISP / public IP / ASN).
+	kFont := decl.Font{Family: "Segoe UI", PointSize: 9}
+	kname := func(s string) decl.Label {
+		return decl.Label{Text: s, TextColor: cSub, Font: kFont, Background: panelBrush}
+	}
+	connChildren := []decl.Widget{
+		kname("ISP"), cell(&u.connISP, cText, mono),
+		kname("Plan / org"), cell(&u.connOrg, cText, mono),
+		kname("Public IP"), cell(&u.connIP, cText, mono),
+		kname("Network (ASN)"), cell(&u.connASN, cText, mono),
+		kname("Location"), cell(&u.connLoc, cText, mono),
+		kname("Type"), cell(&u.connType, cText, mono),
+		kname("Reverse DNS"), cell(&u.connRDNS, cText, mono),
+	}
+
+	// DNS resolver comparison grid.
+	dnsHdr := func(s string) decl.Label {
+		return decl.Label{Text: s, TextColor: cSub, Font: hdr, Background: panelBrush}
+	}
+	dnsChildren := []decl.Widget{dnsHdr("Resolver"), dnsHdr("Address"), dnsHdr("Avg"), dnsHdr("Status")}
+	for i := 0; i < len(u.dnsRows); i++ {
+		dnsChildren = append(dnsChildren,
+			cell(&u.dnsRows[i].name, cText, mono),
+			cell(&u.dnsRows[i].addr, cSub, mono),
+			cell(&u.dnsRows[i].avg, cText, mono),
+			cell(&u.dnsRows[i].status, cText, mono),
+		)
+	}
+
 	// Collapsible section header. walk mis-measures plain Labels here and clips
 	// them, so render the header text in a CustomWidget (DrawText is reliable).
 	secHeader := func(i int, title, tip string) decl.CustomWidget {
@@ -269,15 +303,23 @@ func Run(ctx context.Context, e *engine.Engine) error {
 			secHeader(1, "PATH", "Concentric rings: LAN gateway → ISP edge → internet. A problem that starts at a ring and persists outward is introduced there. Click to collapse / expand."),
 			decl.Composite{AssignTo: &u.secContent[1], Background: panelBrush, Layout: decl.Grid{Columns: 6, Spacing: 5, Margins: mg(14, 10, 14, 10)}, Children: ringChildren},
 
-			// Section 2: System.
-			secHeader(2, "SYSTEM", "Local CPU, memory and GPU load plus throughput. A saturated machine looks like network lag. Click to collapse / expand."),
-			decl.Composite{AssignTo: &u.secContent[2], Background: panelBrush, Layout: decl.VBox{Margins: mg(12, 10, 12, 10)}, Children: []decl.Widget{
+			// Section 2: Connection (ISP / public IP / ASN).
+			secHeader(2, "CONNECTION", "Your public identity on the internet: ISP, public IP, and the network's AS number (its 'service number'). Looked up once at startup. Click to collapse / expand."),
+			decl.Composite{AssignTo: &u.secContent[2], Background: panelBrush, Layout: decl.Grid{Columns: 2, Spacing: 5, Margins: mg(14, 10, 14, 10)}, Children: connChildren},
+
+			// Section 3: System.
+			secHeader(3, "SYSTEM", "Local CPU, memory and GPU load plus throughput. A saturated machine looks like network lag. Click to collapse / expand."),
+			decl.Composite{AssignTo: &u.secContent[3], Background: panelBrush, Layout: decl.VBox{Margins: mg(12, 10, 12, 10)}, Children: []decl.Widget{
 				decl.CustomWidget{AssignTo: &u.sysBars, MinSize: decl.Size{Width: 200, Height: 132}, PaintPixels: u.paintSysBars},
 			}},
 
-			// Section 3: Events.
-			secHeader(3, "EVENTS", "Each detected problem with the degraded metrics, what it means, and a process snapshot. Click a row to drill in. Click this header to collapse / expand."),
-			decl.Composite{AssignTo: &u.secContent[3], Background: panelBrush, Layout: decl.VBox{MarginsZero: true, Spacing: 0}, StretchFactor: 2, Children: []decl.Widget{
+			// Section 4: DNS resolver comparison.
+			secHeader(4, "DNS", "Resolution latency measured against each resolver directly — your configured/router DNS vs public resolvers — so a slow one stands out. Click to collapse / expand."),
+			decl.Composite{AssignTo: &u.secContent[4], Background: panelBrush, Layout: decl.Grid{Columns: 4, Spacing: 5, Margins: mg(14, 10, 14, 10)}, Children: dnsChildren},
+
+			// Section 5: Events.
+			secHeader(5, "EVENTS", "Each detected problem with the degraded metrics, what it means, and a process snapshot. Click a row to drill in. Click this header to collapse / expand."),
+			decl.Composite{AssignTo: &u.secContent[5], Background: panelBrush, Layout: decl.VBox{MarginsZero: true, Spacing: 0}, StretchFactor: 2, Children: []decl.Widget{
 				decl.TableView{
 					AssignTo: &u.issueTable, Background: panelBrush, ColumnsSizable: true, LastColumnStretched: true,
 					MinSize: decl.Size{Width: 320, Height: 110}, StretchFactor: 1,
@@ -629,6 +671,9 @@ func (u *ui) render(s model.Snapshot) {
 	u.sysBars.Invalidate()
 	u.spark.Invalidate()
 
+	u.renderConnection(s)
+	u.renderDNS(s)
+
 	if issues := u.eng.Issues(); len(issues) != len(u.issueData) {
 		u.rebuildIssues(issues)
 	}
@@ -637,6 +682,73 @@ func (u *ui) render(s model.Snapshot) {
 		u.tray.SetToolTip(fmt.Sprintf("Agent Smith — %s: %s", v.Severity, v.Culprit))
 	} else {
 		u.tray.SetToolTip("Agent Smith — connection healthy")
+	}
+}
+
+func nz(s string) string {
+	if s == "" {
+		return "—"
+	}
+	return s
+}
+
+func (u *ui) renderConnection(s model.Snapshot) {
+	if c := s.Conn; c != nil {
+		u.connISP.SetText(nz(c.ISP))
+		u.connISP.SetTextColor(cText)
+		u.connOrg.SetText(nz(c.Org))
+		u.connIP.SetText(nz(c.IP))
+		asn := c.ASN()
+		if c.ASName != "" {
+			asn += "  (" + c.ASName + ")"
+		}
+		u.connASN.SetText(nz(asn))
+		u.connLoc.SetText(nz(c.Location()))
+		u.connType.SetText(nz(c.ConnType))
+		u.connRDNS.SetText(nz(c.Reverse))
+	} else {
+		u.connISP.SetText("looking up…")
+		u.connISP.SetTextColor(cSub)
+		for _, l := range []*walk.Label{u.connOrg, u.connIP, u.connASN, u.connLoc, u.connType, u.connRDNS} {
+			l.SetText("…")
+		}
+	}
+}
+
+func (u *ui) renderDNS(s model.Snapshot) {
+	for i := range u.dnsRows {
+		r := u.dnsRows[i]
+		if i >= len(s.DNSServers) {
+			r.name.SetText("")
+			r.addr.SetText("")
+			r.avg.SetText("")
+			r.status.SetText("")
+			continue
+		}
+		d := s.DNSServers[i]
+		r.name.SetText(d.Name)
+		addr := d.Addr
+		if addr == "" {
+			addr = "(system)"
+		}
+		r.addr.SetText(addr)
+		switch {
+		case !d.OK():
+			r.avg.SetText("—")
+			r.avg.SetTextColor(cSub)
+			r.status.SetText("fail")
+			r.status.SetTextColor(cRed)
+		case d.Slow():
+			r.avg.SetText(rnd(d.Avg).String())
+			r.avg.SetTextColor(cYellow)
+			r.status.SetText("slow")
+			r.status.SetTextColor(cYellow)
+		default:
+			r.avg.SetText(rnd(d.Avg).String())
+			r.avg.SetTextColor(cGreen)
+			r.status.SetText("ok")
+			r.status.SetTextColor(cGreen)
+		}
 	}
 }
 

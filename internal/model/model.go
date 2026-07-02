@@ -8,6 +8,7 @@ import (
 
 	"github.com/NYBaywatch/agent-smith/internal/bufferbloat"
 	"github.com/NYBaywatch/agent-smith/internal/dnsprobe"
+	"github.com/NYBaywatch/agent-smith/internal/ispinfo"
 	"github.com/NYBaywatch/agent-smith/internal/metrics"
 	"github.com/NYBaywatch/agent-smith/internal/netinfo"
 	"github.com/NYBaywatch/agent-smith/internal/sysinfo"
@@ -52,7 +53,9 @@ type Snapshot struct {
 	Net         *netinfo.Info
 	Sys         sysinfo.Stats
 	DNS         dnsprobe.Result
-	Bufferbloat *bufferbloat.Result // last on-demand test, nil until run
+	DNSServers  []dnsprobe.ServerResult // per-resolver comparison
+	Conn        *ispinfo.Info           // public IP / ISP / ASN (nil until looked up)
+	Bufferbloat *bufferbloat.Result     // last on-demand test, nil until run
 	Verdict     Verdict
 }
 
