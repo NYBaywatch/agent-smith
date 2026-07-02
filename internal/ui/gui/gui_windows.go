@@ -129,6 +129,7 @@ type ui struct {
 
 	// connection panel
 	connISP, connOrg, connIP, connASN, connLoc, connType, connRDNS *walk.Label
+	connSupport, connOutage                                        *walk.Label
 	// dns per-resolver rows
 	dnsRows [4]struct{ name, addr, avg, status *walk.Label }
 
@@ -235,6 +236,8 @@ func Run(ctx context.Context, e *engine.Engine) error {
 		kname("Location"), cell(&u.connLoc, cText, mono),
 		kname("Type"), cell(&u.connType, cText, mono),
 		kname("Reverse DNS"), cell(&u.connRDNS, cText, mono),
+		kname("Support ☎"), cell(&u.connSupport, cGreen, decl.Font{Family: "Consolas", PointSize: 11, Bold: true}),
+		kname("Outage page"), cell(&u.connOutage, cSub, mono),
 	}
 
 	// DNS resolver comparison grid.
@@ -706,10 +709,18 @@ func (u *ui) renderConnection(s model.Snapshot) {
 		u.connLoc.SetText(nz(c.Location()))
 		u.connType.SetText(nz(c.ConnType))
 		u.connRDNS.SetText(nz(c.Reverse))
+		if c.Support != "" {
+			u.connSupport.SetText(c.Support)
+			u.connSupport.SetTextColor(cGreen)
+		} else {
+			u.connSupport.SetText("— (see your provider's site / bill)")
+			u.connSupport.SetTextColor(cSub)
+		}
+		u.connOutage.SetText(nz(c.SupportURL))
 	} else {
 		u.connISP.SetText("looking up…")
 		u.connISP.SetTextColor(cSub)
-		for _, l := range []*walk.Label{u.connOrg, u.connIP, u.connASN, u.connLoc, u.connType, u.connRDNS} {
+		for _, l := range []*walk.Label{u.connOrg, u.connIP, u.connASN, u.connLoc, u.connType, u.connRDNS, u.connSupport, u.connOutage} {
 			l.SetText("…")
 		}
 	}

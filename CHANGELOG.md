@@ -7,9 +7,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
-- **Connection panel** — public IP, ISP, plan/org, network **ASN** (the network's
-  "service number"), geo-location, connection type, and reverse DNS, via a geo-IP
-  lookup at startup (refreshed hourly). New `internal/ispinfo` package.
+- **Connection panel** — public IP, ISP, plan/org, network **ASN**, geo-location,
+  connection type, reverse DNS, and the **ISP support/repair phone number + outage
+  page** (curated directory keyed by ASN/name; shown prominently for when the
+  connection is down), via a geo-IP lookup at startup (refreshed hourly). New
+  `internal/ispinfo` package.
 - **Per-resolver DNS monitoring** — measures resolution latency against each
   resolver *directly* (system/configured, Cloudflare, Google, and the LAN gateway)
   so a slow configured resolver stands out. New DNS comparison section.
