@@ -28,12 +28,13 @@ import (
 	"github.com/NYBaywatch/agent-smith/internal/model"
 )
 
-// Ops/Grafana-style dark palette.
+// Ops/Grafana-style dark palette ("Refined Dark").
 var (
-	cBg     = walk.RGB(0x0b, 0x0c, 0x0e)
-	cPanel  = walk.RGB(0x15, 0x17, 0x1c)
-	cPanel2 = walk.RGB(0x1b, 0x1e, 0x24)
-	cLine   = walk.RGB(0x26, 0x2a, 0x31)
+	cBg     = walk.RGB(0x0d, 0x0f, 0x12)
+	cPanel  = walk.RGB(0x16, 0x1a, 0x20)
+	cPanel2 = walk.RGB(0x1b, 0x1e, 0x24) // system-bar track (unchanged)
+	cHdr    = walk.RGB(0x12, 0x15, 0x1a) // tab strip / header bar
+	cLine   = walk.RGB(0x27, 0x2c, 0x34)
 	cText   = walk.RGB(0xe6, 0xe8, 0xeb)
 	cSub    = walk.RGB(0x8b, 0x92, 0x9c)
 	cNet    = walk.RGB(0x4f, 0x8c, 0xff)
@@ -42,6 +43,7 @@ var (
 	cGreen  = walk.RGB(0x34, 0xd3, 0x99)
 	cYellow = walk.RGB(0xfb, 0xbf, 0x24)
 	cRed    = walk.RGB(0xf8, 0x71, 0x71)
+	cAccent = walk.RGB(0x4f, 0x8c, 0xff)
 	cArea   = walk.RGB(0x1e, 0x34, 0x5c)
 )
 
@@ -163,6 +165,7 @@ type ui struct {
 	smallFont, monoFont, hdrFont      *walk.Font
 	brushPanel, brushTrack, brushBg   *walk.SolidColorBrush
 	brushGreen, brushYellow, brushRed *walk.SolidColorBrush
+	brushAccent, brushHdr             *walk.SolidColorBrush
 	penGrid, penNet, penGw, penIsp    *walk.CosmeticPen
 }
 
@@ -485,6 +488,8 @@ func (u *ui) initGDI() {
 	u.brushPanel, _ = walk.NewSolidColorBrush(cPanel)
 	u.brushBg, _ = walk.NewSolidColorBrush(cBg)
 	u.brushTrack, _ = walk.NewSolidColorBrush(cPanel2)
+	u.brushAccent, _ = walk.NewSolidColorBrush(cAccent)
+	u.brushHdr, _ = walk.NewSolidColorBrush(cHdr)
 	u.brushGreen, _ = walk.NewSolidColorBrush(cGreen)
 	u.brushYellow, _ = walk.NewSolidColorBrush(cYellow)
 	u.brushRed, _ = walk.NewSolidColorBrush(cRed)
@@ -495,7 +500,7 @@ func (u *ui) initGDI() {
 }
 
 func (u *ui) disposeGDI() {
-	objs := []interface{ Dispose() }{u.smallFont, u.monoFont, u.hdrFont, u.brushPanel, u.brushBg, u.brushTrack, u.brushGreen, u.brushYellow, u.brushRed, u.penGrid, u.penNet, u.penGw, u.penIsp}
+	objs := []interface{ Dispose() }{u.smallFont, u.monoFont, u.hdrFont, u.brushPanel, u.brushBg, u.brushTrack, u.brushGreen, u.brushYellow, u.brushRed, u.brushAccent, u.brushHdr, u.penGrid, u.penNet, u.penGw, u.penIsp}
 	for _, f := range u.scaleFonts {
 		objs = append(objs, f)
 	}
