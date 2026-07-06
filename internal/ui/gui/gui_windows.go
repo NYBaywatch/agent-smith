@@ -123,11 +123,11 @@ type ui struct {
 	tray    *walk.NotifyIcon
 	appIcon *walk.Icon
 
-	// collapsible sections (chart, path, connection, system, dns, events)
-	secHdrW    [6]*walk.CustomWidget
-	secContent [6]*walk.Composite
-	secOpen    [6]bool
-	secTitle   [6]string
+	// custom tab strip (path, connection, system, dns, events)
+	tabHdrW    [5]*walk.CustomWidget
+	tabContent [5]*walk.Composite
+	tabTitle   [5]string
+	activeTab  int
 
 	// connection panel
 	connISP, connOrg, connIP, connASN, connLoc, connType, connRDNS *walk.Label
@@ -257,19 +257,27 @@ func Run(ctx context.Context, e *engine.Engine) error {
 		)
 	}
 
-	// Collapsible section header. walk mis-measures plain Labels here and clips
-	// them, so render the header text in a CustomWidget (DrawText is reliable).
-	secHeader := func(i int, title, tip string) decl.CustomWidget {
-		u.secTitle[i] = title
-		u.secOpen[i] = true
-		return decl.CustomWidget{
-			AssignTo:    &u.secHdrW[i],
-			MinSize:     decl.Size{Width: 200, Height: 22},
-			ToolTipText: tip,
-			PaintPixels: func(c *walk.Canvas, _ walk.Rectangle) error { return u.paintHeader(i, c) },
-			OnMouseDown: func(x, y int, b walk.MouseButton) { u.toggleSection(i) },
-		}
+	// Custom dark tab strip driving the five content panels.
+	tabDefs := []struct{ title, tip string }{
+		{"PATH", "LAN gateway → ISP edge → internet, each with avg/p95/jitter/loss."},
+		{"CONNECTION", "Your public identity: ISP, public IP, ASN, location."},
+		{"SYSTEM", "Local CPU, memory and GPU load plus throughput."},
+		{"DNS", "Resolution latency per resolver — yours vs public."},
+		{"EVENTS", "Detected problems; click a row to drill into cause + processes."},
 	}
+	tabStrip := make([]decl.Widget, 0, len(tabDefs)+1)
+	for i, td := range tabDefs {
+		i := i
+		u.tabTitle[i] = td.title
+		tabStrip = append(tabStrip, decl.CustomWidget{
+			AssignTo:    &u.tabHdrW[i],
+			MinSize:     decl.Size{Width: 96, Height: 30},
+			ToolTipText: td.tip,
+			PaintPixels: func(c *walk.Canvas, _ walk.Rectangle) error { return u.paintTab(i, c) },
+			OnMouseDown: func(x, y int, b walk.MouseButton) { u.selectTab(i) },
+		})
+	}
+	tabStrip = append(tabStrip, decl.HSpacer{})
 
 	err := (decl.MainWindow{
 		AssignTo:   &u.mw,
@@ -298,34 +306,31 @@ func Run(ctx context.Context, e *engine.Engine) error {
 			// Stat tiles (always visible).
 			decl.Composite{Background: bgBrush, Layout: decl.Grid{Columns: 4, Spacing: 10, MarginsZero: true}, Children: tileWidgets},
 
-			// Section 0: RTT chart.
-			secHeader(0, "ROUND-TRIP TIME", "RTT to the gateway, ISP edge and internet over the last 5 minutes. Click to collapse / expand."),
-			decl.Composite{AssignTo: &u.secContent[0], Background: panelBrush, Layout: decl.VBox{MarginsZero: true}, StretchFactor: 2, Children: []decl.Widget{
-				decl.CustomWidget{AssignTo: &u.spark, MinSize: decl.Size{Width: 320, Height: 150}, StretchFactor: 2, PaintPixels: u.paintSpark,
+			// RTT chart — pinned, fixed height.
+			decl.Composite{Background: panelBrush, Layout: decl.VBox{MarginsZero: true}, MinSize: decl.Size{Width: 320, Height: 150}, Children: []decl.Widget{
+				decl.CustomWidget{AssignTo: &u.spark, MinSize: decl.Size{Width: 320, Height: 140}, PaintPixels: u.paintSpark,
 					ToolTipText: "RTT over time. Blue = Internet, green = LAN, purple = ISP hop. Ctrl+wheel resizes text."},
 			}},
 
-			// Section 1: Path.
-			secHeader(1, "PATH", "Concentric rings: LAN gateway → ISP edge → internet. A problem that starts at a ring and persists outward is introduced there. Click to collapse / expand."),
-			decl.Composite{AssignTo: &u.secContent[1], Background: panelBrush, Layout: decl.Grid{Columns: 6, Spacing: 5, Margins: mg(14, 10, 14, 10)}, Children: ringChildren},
+			// Tab strip.
+			decl.Composite{Background: bgBrush, Layout: decl.HBox{MarginsZero: true, Spacing: 2}, Children: tabStrip},
 
-			// Section 2: Connection (ISP / public IP / ASN).
-			secHeader(2, "CONNECTION", "Your public identity on the internet: ISP, public IP, and the network's AS number (its 'service number'). Looked up once at startup. Click to collapse / expand."),
-			decl.Composite{AssignTo: &u.secContent[2], Background: panelBrush, Layout: decl.Grid{Columns: 2, Spacing: 5, Margins: mg(14, 10, 14, 10)}, Children: connChildren},
+			// Tab 0: Path.
+			decl.Composite{AssignTo: &u.tabContent[0], Background: panelBrush, StretchFactor: 2, Layout: decl.Grid{Columns: 6, Spacing: 5, Margins: mg(14, 10, 14, 10)}, Children: ringChildren},
 
-			// Section 3: System.
-			secHeader(3, "SYSTEM", "Local CPU, memory and GPU load plus throughput. A saturated machine looks like network lag. Click to collapse / expand."),
-			decl.Composite{AssignTo: &u.secContent[3], Background: panelBrush, Layout: decl.VBox{Margins: mg(12, 10, 12, 10)}, Children: []decl.Widget{
+			// Tab 1: Connection.
+			decl.Composite{AssignTo: &u.tabContent[1], Visible: false, Background: panelBrush, StretchFactor: 2, Layout: decl.Grid{Columns: 2, Spacing: 5, Margins: mg(14, 10, 14, 10)}, Children: connChildren},
+
+			// Tab 2: System.
+			decl.Composite{AssignTo: &u.tabContent[2], Visible: false, Background: panelBrush, StretchFactor: 2, Layout: decl.VBox{Margins: mg(12, 10, 12, 10)}, Children: []decl.Widget{
 				decl.CustomWidget{AssignTo: &u.sysBars, MinSize: decl.Size{Width: 200, Height: 132}, PaintPixels: u.paintSysBars},
 			}},
 
-			// Section 4: DNS resolver comparison.
-			secHeader(4, "DNS", "Resolution latency measured against each resolver directly — your configured/router DNS vs public resolvers — so a slow one stands out. Click to collapse / expand."),
-			decl.Composite{AssignTo: &u.secContent[4], Background: panelBrush, Layout: decl.Grid{Columns: 4, Spacing: 5, Margins: mg(14, 10, 14, 10)}, Children: dnsChildren},
+			// Tab 3: DNS.
+			decl.Composite{AssignTo: &u.tabContent[3], Visible: false, Background: panelBrush, StretchFactor: 2, Layout: decl.Grid{Columns: 4, Spacing: 5, Margins: mg(14, 10, 14, 10)}, Children: dnsChildren},
 
-			// Section 5: Events.
-			secHeader(5, "EVENTS", "Each detected problem with the degraded metrics, what it means, and a process snapshot. Click a row to drill in. Click this header to collapse / expand."),
-			decl.Composite{AssignTo: &u.secContent[5], Background: panelBrush, Layout: decl.VBox{MarginsZero: true, Spacing: 0}, StretchFactor: 2, Children: []decl.Widget{
+			// Tab 4: Events.
+			decl.Composite{AssignTo: &u.tabContent[4], Visible: false, Background: panelBrush, StretchFactor: 2, Layout: decl.VBox{MarginsZero: true, Spacing: 0}, Children: []decl.Widget{
 				decl.TableView{
 					AssignTo: &u.issueTable, Background: panelBrush, ColumnsSizable: true, LastColumnStretched: true,
 					MinSize: decl.Size{Width: 320, Height: 110}, StretchFactor: 1,
@@ -346,7 +351,6 @@ func Run(ctx context.Context, e *engine.Engine) error {
 			decl.Composite{Background: bgBrush, Layout: decl.HBox{MarginsZero: true, Spacing: 8}, Children: []decl.Widget{
 				decl.PushButton{AssignTo: &u.bbButton, Text: "Run Bufferbloat Test", OnClicked: u.onBufferbloat,
 					ToolTipText: "Saturate your download for ~10 s and grade the added latency."},
-				decl.PushButton{Text: "Clear Events", OnClicked: u.onClearEvents, ToolTipText: "Remove all recorded events (list and disk)."},
 				decl.Label{AssignTo: &u.bbStatus, Text: "", TextColor: cSub, Background: bgBrush},
 				decl.HSpacer{},
 			}},
@@ -359,6 +363,8 @@ func Run(ctx context.Context, e *engine.Engine) error {
 	u.initGDI()
 	defer u.disposeGDI()
 	enableDarkTitleBar(uintptr(u.mw.Handle()))
+
+	u.selectTab(0)
 
 	collectLabels(u.mw, &u.scaled)
 	u.mw.MouseWheel().Attach(u.onWheel)
@@ -544,32 +550,47 @@ func (u *ui) setupTray() error {
 
 func (u *ui) showWindow() { u.mw.Show(); u.mw.Activate() }
 
-// paintHeader draws a collapsible section header (chevron + title).
-func (u *ui) paintHeader(i int, canvas *walk.Canvas) error {
-	if u.brushBg == nil || u.secHdrW[i] == nil {
+// paintTab draws one tab in the custom strip: centered title, muted unless
+// active, with an accent underline on the active tab.
+func (u *ui) paintTab(i int, canvas *walk.Canvas) error {
+	if u.brushHdr == nil || u.tabHdrW[i] == nil {
 		return nil
 	}
-	cb := u.secHdrW[i].ClientBoundsPixels()
-	canvas.FillRectanglePixels(u.brushBg, walk.Rectangle{X: 0, Y: 0, Width: cb.Width, Height: cb.Height})
-	chev := "▾"
-	if !u.secOpen[i] {
-		chev = "▸"
+	cb := u.tabHdrW[i].ClientBoundsPixels()
+	canvas.FillRectanglePixels(u.brushHdr, walk.Rectangle{X: 0, Y: 0, Width: cb.Width, Height: cb.Height})
+	col := cSub
+	if i == u.activeTab {
+		col = cText
 	}
 	if u.hdrFont != nil {
-		canvas.DrawTextPixels(chev+"  "+u.secTitle[i], u.hdrFont, cText,
-			walk.Rectangle{X: 2, Y: 0, Width: cb.Width - 2, Height: cb.Height}, walk.TextLeft|walk.TextVCenter|walk.TextSingleLine)
+		canvas.DrawTextPixels(u.tabTitle[i], u.hdrFont, col,
+			walk.Rectangle{X: 0, Y: 0, Width: cb.Width, Height: cb.Height},
+			walk.TextCenter|walk.TextVCenter|walk.TextSingleLine)
+	}
+	if i == u.activeTab && u.brushAccent != nil {
+		canvas.FillRectanglePixels(u.brushAccent, walk.Rectangle{X: 0, Y: cb.Height - 2, Width: cb.Width, Height: 2})
 	}
 	return nil
 }
 
-// toggleSection collapses or expands a section's content and updates its chevron.
-func (u *ui) toggleSection(i int) {
-	if i < 0 || i >= len(u.secContent) || u.secContent[i] == nil {
+// selectTab shows the chosen content panel, hides the rest, and repaints the
+// strip so the active-tab styling updates.
+func (u *ui) selectTab(i int) {
+	if i < 0 || i >= len(u.tabContent) {
 		return
 	}
-	u.secOpen[i] = !u.secOpen[i]
-	u.secContent[i].SetVisible(u.secOpen[i])
-	u.secHdrW[i].Invalidate()
+	u.activeTab = i
+	vis := tabVisibility(i, len(u.tabContent))
+	for j := range u.tabContent {
+		if u.tabContent[j] != nil {
+			u.tabContent[j].SetVisible(vis[j])
+		}
+	}
+	for j := range u.tabHdrW {
+		if u.tabHdrW[j] != nil {
+			u.tabHdrW[j].Invalidate()
+		}
+	}
 }
 
 func (u *ui) consume(ctx context.Context) {
