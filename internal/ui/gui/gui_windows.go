@@ -193,7 +193,7 @@ func Run(ctx context.Context, e *engine.Engine) error {
 		tileWidgets[i] = decl.Composite{
 			Background:  panelBrush,
 			ToolTipText: td.tip,
-			Layout:      decl.VBox{Margins: mg(13, 11, 13, 11), Spacing: 4},
+			Layout:      decl.VBox{Margins: mg(12, 10, 12, 10), Spacing: 4},
 			Children: []decl.Widget{
 				decl.Label{Text: td.title, TextColor: cSub, Font: hdr},
 				decl.Label{AssignTo: &u.tiles[i].val, Text: "—", TextColor: cText, Font: tileV},
@@ -345,6 +345,10 @@ func Run(ctx context.Context, e *engine.Engine) error {
 				},
 				decl.TextEdit{AssignTo: &u.issueDetail, ReadOnly: true, Background: panelBrush, TextColor: cText, Font: mono, VScroll: true,
 					MinSize: decl.Size{Width: 320, Height: 150}, StretchFactor: 1},
+				decl.Composite{Background: panelBrush, Layout: decl.HBox{Margins: mg(0, 6, 0, 0), Spacing: 8}, Children: []decl.Widget{
+					decl.HSpacer{},
+					decl.PushButton{Text: "Clear Events", OnClicked: u.onClearEvents, ToolTipText: "Remove all recorded events (list and disk)."},
+				}},
 			}},
 
 			// Actions (always visible).
