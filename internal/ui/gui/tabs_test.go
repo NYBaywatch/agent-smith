@@ -29,3 +29,16 @@ func TestTabVisibilityOutOfRange(t *testing.T) {
 		}
 	}
 }
+
+func TestTabVisibilityNegative(t *testing.T) {
+	// active < 0 => nothing visible, slice still length n.
+	got := tabVisibility(-1, 3)
+	if len(got) != 3 {
+		t.Fatalf("len = %d, want 3", len(got))
+	}
+	for i, v := range got {
+		if v {
+			t.Fatalf("index %d visible, want none visible: %v", i, got)
+		}
+	}
+}
