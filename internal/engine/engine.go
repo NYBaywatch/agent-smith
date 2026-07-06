@@ -52,7 +52,7 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		Interval: time.Second,
-		Window:   30,
+		Window:   15,
 		Timeout:  time.Second,
 		Anchors: []Target{
 			{Name: "Cloudflare", Host: "1.1.1.1", Role: model.RoleInternet},
