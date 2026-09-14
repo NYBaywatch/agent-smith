@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-09-14
+
 ### Added — Internet performance monitoring
 A single-vantage-point take on the commercial IPM feature set (Catchpoint /
 LogicMonitor IPM): the same internet layers, measured from this PC.
@@ -155,5 +157,6 @@ Windows that measures the metrics that matter and localizes the bottleneck.
 - **CLI dashboard** (cross-platform) and a `--bufferbloat` one-shot mode.
 - GitHub Actions CI (Windows + Linux, race tests) and a Windows GUI build artifact.
 
-[Unreleased]: https://github.com/NYBaywatch/agent-smith/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/NYBaywatch/agent-smith/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/NYBaywatch/agent-smith/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/NYBaywatch/agent-smith/releases/tag/v0.1.0
