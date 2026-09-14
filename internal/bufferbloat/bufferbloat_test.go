@@ -20,10 +20,26 @@ func TestMedian(t *testing.T) {
 
 func TestDefaultOptionsHasFallbacks(t *testing.T) {
 	o := DefaultOptions()
-	if len(o.LoadURLs) < 2 {
-		t.Fatalf("expected >=2 fallback load URLs, got %d", len(o.LoadURLs))
+	if len(o.Sources) < 2 {
+		t.Fatalf("expected >=2 fallback load sources, got %d", len(o.Sources))
+	}
+	if o.Sources[0].UpURL == "" {
+		t.Fatal("expected the primary source to support upload")
 	}
 	if o.Connections < 1 {
 		t.Fatal("expected >=1 connection")
+	}
+}
+
+func TestReportAdaptsProgress(t *testing.T) {
+	if (Options{}).report("idle") != nil {
+		t.Fatal("no Progress should yield a nil reporter")
+	}
+	var gotPhase string
+	var gotRTT time.Duration
+	o := Options{Progress: func(phase string, rtt time.Duration) { gotPhase, gotRTT = phase, rtt }}
+	o.report("load")(12 * time.Millisecond)
+	if gotPhase != "load" || gotRTT != 12*time.Millisecond {
+		t.Fatalf("reporter passed %q/%v", gotPhase, gotRTT)
 	}
 }

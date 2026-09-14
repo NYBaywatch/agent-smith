@@ -9,11 +9,14 @@ import (
 	"github.com/NYBaywatch/agent-smith/internal/baseline"
 	"github.com/NYBaywatch/agent-smith/internal/bgp"
 	"github.com/NYBaywatch/agent-smith/internal/bufferbloat"
+	"github.com/NYBaywatch/agent-smith/internal/dnsbench"
 	"github.com/NYBaywatch/agent-smith/internal/dnsprobe"
 	"github.com/NYBaywatch/agent-smith/internal/ispinfo"
 	"github.com/NYBaywatch/agent-smith/internal/metrics"
 	"github.com/NYBaywatch/agent-smith/internal/netinfo"
 	"github.com/NYBaywatch/agent-smith/internal/pathmon"
+	"github.com/NYBaywatch/agent-smith/internal/speedtest"
+	"github.com/NYBaywatch/agent-smith/internal/stability"
 	"github.com/NYBaywatch/agent-smith/internal/synth"
 	"github.com/NYBaywatch/agent-smith/internal/sysinfo"
 )
@@ -60,6 +63,9 @@ type Snapshot struct {
 	DNSServers  []dnsprobe.ServerResult // per-resolver comparison
 	Conn        *ispinfo.Info           // public IP / ISP / ASN (nil until looked up)
 	Bufferbloat *bufferbloat.Result     // last on-demand test, nil until run
+	Speed       *speedtest.Result       // last speed test, nil until run
+	Stability   *stability.Result       // last probe-burst test, nil until run
+	DNSBench    *dnsbench.Result        // last resolver benchmark, nil until run
 	Verdict     Verdict
 
 	// --- Internet performance monitoring (single-vantage-point IPM) ---

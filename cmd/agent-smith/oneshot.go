@@ -70,5 +70,8 @@ One-shot modes:
   --trace HOST         enriched traceroute (loss, RTT, rDNS, ASN, degraded-hop reading)
   --check              run every synthetic HTTP check once and print timings
   --report             print SLA / baseline / incident report from persisted history
+  --speedtest          download + upload throughput with latency under load (~20 s)
+  --stability          200-probe burst: loss, jitter, p99, outage gaps (~10 s)
+  --dnsbench           race your resolver against public resolvers and the gateway
 `)
 }
