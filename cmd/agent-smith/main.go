@@ -21,7 +21,15 @@ var version = "dev"
 func main() {
 	cli := flag.Bool("cli", false, "run the headless terminal dashboard instead of the GUI")
 	bb := flag.Bool("bufferbloat", false, "run a one-shot bufferbloat test and exit")
+	trace := flag.String("trace", "", "run a one-shot enriched traceroute to HOST and exit")
+	check := flag.Bool("check", false, "run every synthetic HTTP check once and exit")
+	report := flag.Bool("report", false, "print the SLA / baseline / incident report and exit")
 	showVersion := flag.Bool("version", false, "print version and exit")
+	flag.Usage = func() {
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: agent-smith [flags]\n\n")
+		flag.PrintDefaults()
+		fmt.Fprintln(flag.CommandLine.Output(), "\n"+usageExtra())
+	}
 	flag.Parse()
 
 	if *showVersion {
@@ -32,8 +40,19 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	if *bb {
-		if err := runBufferbloat(ctx); err != nil {
+	var oneShot func(context.Context) error
+	switch {
+	case *bb:
+		oneShot = runBufferbloat
+	case *trace != "":
+		oneShot = func(ctx context.Context) error { return runTrace(ctx, *trace) }
+	case *check:
+		oneShot = runChecks
+	case *report:
+		oneShot = runReport
+	}
+	if oneShot != nil {
+		if err := oneShot(ctx); err != nil {
 			fmt.Fprintln(os.Stderr, "agent-smith:", err)
 			os.Exit(1)
 		}

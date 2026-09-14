@@ -59,8 +59,14 @@ func Classify(s model.Snapshot) model.Verdict {
 	return ClassifyWith(s, DefaultThresholds())
 }
 
-// ClassifyWith is Classify with explicit thresholds (used by tests).
+// ClassifyWith is Classify with explicit thresholds (used by tests). The core
+// most-local-first rules run first; the result is then refined with the
+// internet-performance signals (path diagnosis, synthetics, baseline, BGP).
 func ClassifyWith(s model.Snapshot, t Thresholds) model.Verdict {
+	return applyIPM(s, classifyCore(s, t), t)
+}
+
+func classifyCore(s model.Snapshot, t Thresholds) model.Verdict {
 	onWiFi := s.Net.OnWiFi()
 
 	// --- Rule 1: Local machine (CPU/memory/NIC saturation) ---

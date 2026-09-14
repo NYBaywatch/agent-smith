@@ -8,17 +8,27 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/NYBaywatch/agent-smith/internal/baseline"
+	"github.com/NYBaywatch/agent-smith/internal/incident"
 	"github.com/NYBaywatch/agent-smith/internal/model"
+	"github.com/NYBaywatch/agent-smith/internal/pathmon"
 )
 
-// State is the persisted document.
+// State is the persisted document. Version 2 adds the long-term baseline
+// series, grouped incidents and recent route changes; a version-1 file loads
+// with those fields empty.
 type State struct {
 	Version int               `json:"version"`
 	History []model.HistPoint `json:"history"`
 	Issues  []model.Issue     `json:"issues"`
+
+	Baseline       []baseline.Series     `json:"baseline,omitempty"`
+	Incidents      []incident.Incident   `json:"incidents,omitempty"`
+	NextIncidentID int                   `json:"next_incident_id,omitempty"`
+	RouteChanges   []pathmon.RouteChange `json:"route_changes,omitempty"`
 }
 
-const currentVersion = 1
+const currentVersion = 2
 
 // Dir returns the Agent Smith data directory, creating it if necessary.
 func Dir() (string, error) {

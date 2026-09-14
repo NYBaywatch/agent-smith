@@ -46,6 +46,7 @@ type Config struct {
 	DNSInterval      time.Duration // how often to measure DNS latency
 	TopologyInterval time.Duration // how often to re-discover gateway/ISP hop
 	MaxTraceHops     int           // cap for ISP-hop discovery
+	IPM              IPMConfig     // internet-performance-monitoring loops
 }
 
 // DefaultConfig returns production-sensible defaults.
@@ -61,6 +62,7 @@ func DefaultConfig() Config {
 		DNSInterval:      15 * time.Second,
 		TopologyInterval: 30 * time.Second,
 		MaxTraceHops:     8,
+		IPM:              DefaultIPMConfig(),
 	}
 }
 
@@ -87,6 +89,8 @@ type Engine struct {
 	issues       []model.Issue
 	lastIssueKey string
 	lastIssueAt  time.Time
+
+	ipm *ipm // synthetics, paths, baselines, incidents
 }
 
 // New constructs an Engine with the given config.
@@ -100,11 +104,14 @@ func New(cfg Config) (*Engine, error) {
 		pinger:  p,
 		sys:     sysinfo.NewCollector(),
 		windows: make(map[string]*metrics.Window),
+		ipm:     newIPM(cfg.IPM),
 	}
-	// Restore persisted history + issues (best effort).
+	// Restore persisted history, issues, baselines, incidents (best effort).
 	if st, err := store.Load(); err == nil {
 		e.history = st.History
 		e.issues = st.Issues
+		e.ipm.tracker.Import(st.Baseline)
+		e.ipm.grouper.Import(st.Incidents, st.NextIncidentID)
 	}
 	return e, nil
 }
@@ -140,8 +147,9 @@ func (e *Engine) Run(ctx context.Context) error {
 	go e.refreshISP(ctx) // one-off at startup (network call)
 
 	var wg sync.WaitGroup
-	wg.Add(5)
+	wg.Add(6)
 	go func() { defer wg.Done(); e.probeLoop(ctx) }()
+	go func() { defer wg.Done(); e.runIPM(ctx) }()
 	go func() { defer wg.Done(); e.periodic(ctx, e.cfg.TopologyInterval, e.refreshTopology) }()
 	go func() { defer wg.Done(); e.periodic(ctx, e.cfg.DNSInterval, e.refreshDNS) }()
 	go func() { defer wg.Done(); e.periodic(ctx, time.Hour, e.refreshISP) }()
@@ -209,7 +217,10 @@ func (e *Engine) tick(ctx context.Context) {
 
 	sys, _ := e.sys.Sample(ctx)
 	snap := e.buildSnapshot(sys)
+	e.trackTick(snap)
+	e.fillIPM(&snap)
 	snap.Verdict = classifier.Classify(snap)
+	e.observeIncident(snap)
 	e.publish(snap)
 	e.recordHistory(snap)
 	e.maybeRecordIssue(ctx, snap)
@@ -306,7 +317,7 @@ func (e *Engine) ClearIssues() {
 	e.save()
 }
 
-// save persists current history + issues (best effort).
+// save persists current history, issues, baselines and incidents (best effort).
 func (e *Engine) save() {
 	e.mu.RLock()
 	st := store.State{
@@ -314,6 +325,9 @@ func (e *Engine) save() {
 		Issues:  append([]model.Issue(nil), e.issues...),
 	}
 	e.mu.RUnlock()
+	st.Baseline = e.ipm.tracker.Export()
+	st.Incidents, st.NextIncidentID = e.ipm.grouper.Export()
+	st.RouteChanges = e.ipm.paths.Changes()
 	_ = store.Save(st)
 }
 

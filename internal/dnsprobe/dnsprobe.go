@@ -7,6 +7,10 @@ import (
 	"context"
 	"errors"
 	"net"
+	"os"
+	"runtime"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -134,3 +138,142 @@ func measureWith(ctx context.Context, r *net.Resolver, domains []string, perTime
 // resolver expectations (a local/cached or fast public resolver answers in tens
 // of ms; hundreds of ms is sluggish).
 func (r Result) Slow() bool { return r.Avg > 100*time.Millisecond }
+
+// --- authoritative nameserver timing ---
+
+// AuthResult is one timed query sent directly to a domain's authoritative
+// nameserver — the "nameserver resolution time" that a recursive resolver's
+// cache normally hides. A slow or failing authoritative server makes a site
+// slow to reach on every cache miss, independently of the user's resolver.
+type AuthResult struct {
+	Domain  string
+	NS      string // nameserver hostname (e.g. "ns1.example.com.")
+	Addr    string // "ip:53" actually queried; empty if the NS could not be resolved
+	Latency time.Duration
+	OK      bool
+	Err     string
+}
+
+// maxAuthNS caps how many nameservers are timed per domain.
+const maxAuthNS = 2
+
+// authConcurrency bounds how many domains are measured at once.
+const authConcurrency = 3
+
+// Lookups used by MeasureAuthoritative, as package variables so tests can
+// script them without the network.
+var (
+	lookupNS = func(ctx context.Context, domain string) ([]*net.NS, error) {
+		return net.DefaultResolver.LookupNS(ctx, domain)
+	}
+	lookupHost = func(ctx context.Context, host string) ([]string, error) {
+		return net.DefaultResolver.LookupHost(ctx, host)
+	}
+	// resolverForHook builds the resolver used for the timed query; tests
+	// redirect it at an in-process responder.
+	resolverForHook = resolverFor
+)
+
+// MeasureAuthoritative times, for each domain, one lookup of the domain sent
+// straight to up to two of its authoritative nameservers (found via NS
+// records and resolved to addresses first). Each query is bounded by ctx and
+// perTimeout; domains are measured concurrently (bounded) to cap wall time.
+// A domain whose NS records cannot be found yields a single failed result.
+func MeasureAuthoritative(ctx context.Context, domains []string, perTimeout time.Duration) []AuthResult {
+	if perTimeout <= 0 {
+		perTimeout = 2 * time.Second
+	}
+	per := make([][]AuthResult, len(domains))
+	sem := make(chan struct{}, authConcurrency)
+	var wg sync.WaitGroup
+	for i, d := range domains {
+		wg.Add(1)
+		go func(i int, d string) {
+			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				per[i] = []AuthResult{{Domain: d, Err: ctx.Err().Error()}}
+				return
+			}
+			per[i] = measureAuthDomain(ctx, d, perTimeout)
+		}(i, d)
+	}
+	wg.Wait()
+	var out []AuthResult
+	for _, rs := range per {
+		out = append(out, rs...)
+	}
+	return out
+}
+
+// measureAuthDomain times queries for one domain against its nameservers.
+func measureAuthDomain(ctx context.Context, domain string, perTimeout time.Duration) []AuthResult {
+	nctx, cancel := context.WithTimeout(ctx, perTimeout)
+	nss, err := lookupNS(nctx, domain)
+	cancel()
+	if err != nil {
+		return []AuthResult{{Domain: domain, Err: err.Error()}}
+	}
+	if len(nss) == 0 {
+		return []AuthResult{{Domain: domain, Err: "no NS records"}}
+	}
+	if len(nss) > maxAuthNS {
+		nss = nss[:maxAuthNS]
+	}
+	out := make([]AuthResult, 0, len(nss))
+	for _, ns := range nss {
+		r := AuthResult{Domain: domain, NS: ns.Host}
+		hctx, cancel := context.WithTimeout(ctx, perTimeout)
+		addrs, err := lookupHost(hctx, strings.TrimSuffix(ns.Host, "."))
+		cancel()
+		if err != nil || len(addrs) == 0 {
+			r.Err = "nameserver address unknown"
+			if err != nil {
+				r.Err = err.Error()
+			}
+			out = append(out, r)
+			continue
+		}
+		r.Addr = net.JoinHostPort(addrs[0], "53")
+		qctx, cancel := context.WithTimeout(ctx, perTimeout)
+		start := time.Now()
+		_, err = resolverForHook(r.Addr, perTimeout).LookupHost(qctx, domain)
+		r.Latency = time.Since(start)
+		cancel()
+		if err != nil {
+			var de *net.DNSError
+			if !(errors.As(err, &de) && de.IsNotFound) {
+				r.Err = err.Error()
+				out = append(out, r)
+				continue
+			}
+		}
+		r.OK = true
+		out = append(out, r)
+	}
+	return out
+}
+
+// SystemResolvers returns the resolver addresses the OS is configured with,
+// best effort: /etc/resolv.conf nameserver entries on Unix-like systems, nil on
+// Windows (or when nothing can be read) so callers fall back to the system
+// resolver.
+func SystemResolvers() []string {
+	if runtime.GOOS == "windows" {
+		return nil
+	}
+	data, err := os.ReadFile("/etc/resolv.conf")
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, line := range strings.Split(string(data), "\n") {
+		f := strings.Fields(line)
+		if len(f) >= 2 && f[0] == "nameserver" && net.ParseIP(f[1]) != nil {
+			out = append(out, f[1])
+		}
+	}
+	return out
+}
