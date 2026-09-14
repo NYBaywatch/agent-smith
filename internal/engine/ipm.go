@@ -40,6 +40,7 @@ type IPMConfig struct {
 
 	SLO              baseline.SLO
 	IncidentCooldown time.Duration // healthy time before an open incident closes
+	Notify           bool          // UIs may raise desktop notifications on incidents
 }
 
 // DefaultIPMConfig returns production-sensible IPM defaults with the built-in
@@ -58,6 +59,7 @@ func DefaultIPMConfig() IPMConfig {
 		BGPInterval:       time.Hour,
 		SLO:               baseline.SLO{Availability: 0.999, P95Ms: 100},
 		IncidentCooldown:  45 * time.Second,
+		Notify:            true,
 	}
 }
 
@@ -157,6 +159,10 @@ func (e *Engine) LongTerm(now time.Time) []model.SLAEntry {
 	})
 	return out
 }
+
+// NotifyEnabled reports whether UIs should raise desktop notifications when
+// incidents open and close.
+func (e *Engine) NotifyEnabled() bool { return e.ipm.cfg.Notify }
 
 // SLO returns the objective SLA compliance is judged against.
 func (e *Engine) SLO() baseline.SLO { return e.ipm.cfg.SLO }

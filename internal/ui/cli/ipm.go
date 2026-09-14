@@ -310,6 +310,9 @@ func msStr(d time.Duration) string {
 	if d <= 0 {
 		return "—"
 	}
+	if d < time.Millisecond {
+		return "<1 ms"
+	}
 	return fmt.Sprintf("%.0f ms", float64(d)/float64(time.Millisecond))
 }
 

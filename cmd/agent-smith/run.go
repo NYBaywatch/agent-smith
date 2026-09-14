@@ -44,6 +44,7 @@ func engineConfig() engine.Config {
 	cfg.IPM.PathInterval = uc.PathInterval()
 	cfg.IPM.ProbesPerHop = uc.Path.ProbesPerHop
 	cfg.IPM.SLO = baseline.SLO{Availability: uc.SLO.Availability, P95Ms: uc.SLO.P95Ms}
+	cfg.IPM.Notify = uc.Notifications
 	return cfg
 }
 

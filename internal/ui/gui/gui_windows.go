@@ -70,6 +70,7 @@ func loadAppIcon() *walk.Icon {
 
 const (
 	maxRows   = 4
+	numTabs   = 8
 	mkControl = 0x0008 // WM_MOUSEWHEEL Ctrl flag
 )
 
@@ -123,11 +124,13 @@ type ui struct {
 	tray    *walk.NotifyIcon
 	appIcon *walk.Icon
 
-	// custom tab strip (path, connection, system, dns, events)
-	tabHdrW    [5]*walk.CustomWidget
-	tabContent [5]*walk.Composite
-	tabTitle   [5]string
+	// custom tab strip (path, route, services, sla, connection, system, dns, events)
+	tabHdrW    [numTabs]*walk.CustomWidget
+	tabContent [numTabs]*walk.Composite
+	tabTitle   [numTabs]string
 	activeTab  int
+
+	ipm ipmUI // internet-performance tabs and rows
 
 	// connection panel
 	connISP, connOrg, connIP, connASN, connLoc, connType, connRDNS *walk.Label
@@ -241,6 +244,8 @@ func Run(ctx context.Context, e *engine.Engine) error {
 		kname("Reverse DNS"), cell(&u.connRDNS, cText, mono),
 		kname("Support ☎"), cell(&u.connSupport, cGreen, decl.Font{Family: "Consolas", PointSize: 11, Bold: true}),
 		kname("Outage page"), cell(&u.connOutage, cSub, mono),
+		kname("BGP prefix"), cell(&u.ipm.connPrefix, cText, mono),
+		kname("BGP visibility"), cell(&u.ipm.connBGP, cText, mono),
 	}
 
 	// DNS resolver comparison grid.
@@ -256,14 +261,30 @@ func Run(ctx context.Context, e *engine.Engine) error {
 			cell(&u.dnsRows[i].status, cText, mono),
 		)
 	}
+	// Authoritative nameserver timing (what a resolver cache miss costs).
+	dnsChildren = append(dnsChildren,
+		decl.Label{Text: "Authoritative", TextColor: cSub, Font: hdr, Background: panelBrush,
+			ToolTipText: "Queries sent straight to each domain's authoritative nameservers — the resolution time a resolver's cache normally hides."},
+		dnsHdr("Nameserver"), dnsHdr("Query"), dnsHdr("Status"))
+	for i := 0; i < len(u.ipm.dnsAuth); i++ {
+		dnsChildren = append(dnsChildren,
+			cell(&u.ipm.dnsAuth[i].domain, cText, mono),
+			cell(&u.ipm.dnsAuth[i].ns, cSub, mono),
+			cell(&u.ipm.dnsAuth[i].lat, cText, mono),
+			cell(&u.ipm.dnsAuth[i].status, cText, mono),
+		)
+	}
 
 	// Custom dark tab strip driving the five content panels.
 	tabDefs := []struct{ title, tip string }{
 		{"PATH", "LAN gateway → ISP edge → internet, each with avg/p95/jitter/loss."},
-		{"CONNECTION", "Your public identity: ISP, public IP, ASN, location."},
+		{"ROUTE", "Hop-by-hop traceroute with per-hop loss, RTT, reverse DNS and ASN; shows where degradation starts."},
+		{"SERVICES", "Synthetic HTTP checks: SaaS, cloud, CDN and AI-API endpoints with timing breakdown and edge PoP."},
+		{"SLA", "Availability and latency over 1 h / 24 h / 7 d, baselines, anomaly detection and SLO error budget."},
+		{"CONNECTION", "Your public identity: ISP, public IP, ASN, location, BGP visibility."},
 		{"SYSTEM", "Local CPU, memory and GPU load plus throughput."},
-		{"DNS", "Resolution latency per resolver — yours vs public."},
-		{"EVENTS", "Detected problems; click a row to drill into cause + processes."},
+		{"DNS", "Resolution latency per resolver — yours vs public — and authoritative nameservers."},
+		{"EVENTS", "Incidents (grouped) and raw events; click a row to drill into cause + processes."},
 	}
 	tabStrip := make([]decl.Widget, 0, len(tabDefs)+1)
 	for i, td := range tabDefs {
@@ -271,7 +292,8 @@ func Run(ctx context.Context, e *engine.Engine) error {
 		u.tabTitle[i] = td.title
 		tabStrip = append(tabStrip, decl.CustomWidget{
 			AssignTo:    &u.tabHdrW[i],
-			MinSize:     decl.Size{Width: 96, Height: 30},
+			MinSize:     decl.Size{Width: 84, Height: 30},
+			MaxSize:     decl.Size{Height: 30},
 			ToolTipText: td.tip,
 			PaintPixels: func(c *walk.Canvas, _ walk.Rectangle) error { return u.paintTab(i, c) },
 			OnMouseDown: func(x, y int, b walk.MouseButton) { u.selectTab(i) },
@@ -279,13 +301,16 @@ func Run(ctx context.Context, e *engine.Engine) error {
 	}
 	tabStrip = append(tabStrip, decl.HSpacer{})
 
+	pathPanel := gridPanel(&u.tabContent[0], 6, ringChildren)
+	pathPanel.Visible = true
+
 	err := (decl.MainWindow{
 		AssignTo:   &u.mw,
 		Title:      "Agent Smith — network & system performance monitor",
 		Icon:       u.appIcon,
 		Background: bgBrush,
-		MinSize:    decl.Size{Width: 760, Height: 560},
-		Size:       decl.Size{Width: 780, Height: 980},
+		MinSize:    decl.Size{Width: 800, Height: 600},
+		Size:       decl.Size{Width: 860, Height: 1000},
 		Layout:     decl.VBox{Margins: mg(14, 12, 14, 12), Spacing: 8},
 		Children: []decl.Widget{
 			// Header (always visible).
@@ -294,7 +319,7 @@ func Run(ctx context.Context, e *engine.Engine) error {
 				Layout:     decl.HBox{MarginsZero: true, Spacing: 8},
 				Children: []decl.Widget{
 					decl.Label{Text: "◈ AGENT SMITH", NoPrefix: true, TextColor: cIsp, Font: decl.Font{Family: "Segoe UI", PointSize: 14, Bold: true}, Background: bgBrush, MinSize: decl.Size{Width: 185}},
-					decl.Label{Text: "network · system performance", NoPrefix: true, TextColor: cSub, Font: decl.Font{Family: "Segoe UI", PointSize: 9}, Background: bgBrush},
+					decl.Label{Text: "network · internet · system performance", NoPrefix: true, TextColor: cSub, Font: decl.Font{Family: "Segoe UI", PointSize: 9}, Background: bgBrush},
 					decl.HSpacer{},
 					decl.Label{AssignTo: &u.statusPill, Text: "● STARTING", NoPrefix: true, TextColor: cSub, Font: decl.Font{Family: "Segoe UI", PointSize: 10, Bold: true}, Background: bgBrush,
 						ToolTipText: "Overall status, summarised from all signals."},
@@ -307,30 +332,39 @@ func Run(ctx context.Context, e *engine.Engine) error {
 			decl.Composite{Background: bgBrush, Layout: decl.Grid{Columns: 4, Spacing: 10, MarginsZero: true}, Children: tileWidgets},
 
 			// RTT chart — pinned, fixed height.
-			decl.Composite{Background: panelBrush, Layout: decl.VBox{MarginsZero: true}, MinSize: decl.Size{Width: 320, Height: 150}, Children: []decl.Widget{
+			decl.Composite{Background: panelBrush, Layout: decl.VBox{MarginsZero: true}, MinSize: decl.Size{Width: 320, Height: 150}, MaxSize: decl.Size{Height: 260}, Children: []decl.Widget{
 				decl.CustomWidget{AssignTo: &u.spark, MinSize: decl.Size{Width: 320, Height: 140}, PaintPixels: u.paintSpark,
 					ToolTipText: "RTT over time. Blue = Internet, green = LAN, purple = ISP hop. Ctrl+wheel resizes text."},
 			}},
 
-			// Tab strip.
-			decl.Composite{Background: bgBrush, Layout: decl.HBox{MarginsZero: true, Spacing: 2}, Children: tabStrip},
+			// Tab strip (fixed height; the content area below takes the stretch).
+			decl.Composite{Background: bgBrush, MaxSize: decl.Size{Height: 30}, Layout: decl.HBox{MarginsZero: true, Spacing: 2}, Children: tabStrip},
 
 			// Tab 0: Path.
-			decl.Composite{AssignTo: &u.tabContent[0], Background: panelBrush, StretchFactor: 2, Layout: decl.Grid{Columns: 6, Spacing: 5, Margins: mg(14, 10, 14, 10)}, Children: ringChildren},
+			pathPanel,
 
-			// Tab 1: Connection.
-			decl.Composite{AssignTo: &u.tabContent[1], Visible: false, Background: panelBrush, StretchFactor: 2, Layout: decl.Grid{Columns: 2, Spacing: 5, Margins: mg(14, 10, 14, 10)}, Children: connChildren},
+			// Tab 1: Route (hop-by-hop).
+			decl.Composite{AssignTo: &u.tabContent[1], Visible: false, Background: panelBrush, StretchFactor: 4, Layout: decl.VBox{Margins: mg(12, 8, 12, 8), Spacing: 6}, Children: u.routeTab()},
 
-			// Tab 2: System.
-			decl.Composite{AssignTo: &u.tabContent[2], Visible: false, Background: panelBrush, StretchFactor: 2, Layout: decl.VBox{Margins: mg(12, 10, 12, 10)}, Children: []decl.Widget{
+			// Tab 2: Services (synthetic HTTP checks).
+			decl.Composite{AssignTo: &u.tabContent[2], Visible: false, Background: panelBrush, StretchFactor: 4, Layout: decl.VBox{Margins: mg(12, 8, 12, 8), Spacing: 6}, Children: u.servicesTab()},
+
+			// Tab 3: SLA / baselines.
+			decl.Composite{AssignTo: &u.tabContent[3], Visible: false, Background: panelBrush, StretchFactor: 4, Layout: decl.VBox{Margins: mg(12, 8, 12, 8), Spacing: 6}, Children: u.slaTab()},
+
+			// Tab 4: Connection.
+			gridPanel(&u.tabContent[4], 2, connChildren),
+
+			// Tab 5: System.
+			decl.Composite{AssignTo: &u.tabContent[5], Visible: false, Background: panelBrush, StretchFactor: 2, Layout: decl.VBox{Margins: mg(12, 10, 12, 10)}, Children: []decl.Widget{
 				decl.CustomWidget{AssignTo: &u.sysBars, MinSize: decl.Size{Width: 200, Height: 132}, PaintPixels: u.paintSysBars},
 			}},
 
-			// Tab 3: DNS.
-			decl.Composite{AssignTo: &u.tabContent[3], Visible: false, Background: panelBrush, StretchFactor: 2, Layout: decl.Grid{Columns: 4, Spacing: 5, Margins: mg(14, 10, 14, 10)}, Children: dnsChildren},
+			// Tab 6: DNS.
+			gridPanel(&u.tabContent[6], 4, dnsChildren),
 
-			// Tab 4: Events.
-			decl.Composite{AssignTo: &u.tabContent[4], Visible: false, Background: panelBrush, StretchFactor: 2, Layout: decl.VBox{MarginsZero: true, Spacing: 0}, Children: []decl.Widget{
+			// Tab 7: Events — grouped incidents above the raw event log.
+			decl.Composite{AssignTo: &u.tabContent[7], Visible: false, Background: panelBrush, StretchFactor: 4, Layout: decl.VBox{Margins: mg(12, 8, 12, 8), Spacing: 4}, Children: append(u.incidentsWidgets(),
 				decl.TableView{
 					AssignTo: &u.issueTable, Background: panelBrush, ColumnsSizable: true, LastColumnStretched: true,
 					MinSize: decl.Size{Width: 320, Height: 110}, StretchFactor: 1,
@@ -344,12 +378,13 @@ func Run(ctx context.Context, e *engine.Engine) error {
 					StyleCell:             u.styleIssueCell,
 				},
 				decl.TextEdit{AssignTo: &u.issueDetail, ReadOnly: true, Background: panelBrush, TextColor: cText, Font: mono, VScroll: true,
-					MinSize: decl.Size{Width: 320, Height: 150}, StretchFactor: 1},
+					MinSize: decl.Size{Width: 320, Height: 120}, StretchFactor: 1},
 				decl.Composite{Background: panelBrush, Layout: decl.HBox{Margins: mg(0, 6, 0, 0), Spacing: 8}, Children: []decl.Widget{
 					decl.HSpacer{},
+					decl.PushButton{Text: "Clear Incidents", OnClicked: u.onClearIncidents, ToolTipText: "Remove all recorded incidents (list and disk)."},
 					decl.PushButton{Text: "Clear Events", OnClicked: u.onClearEvents, ToolTipText: "Remove all recorded events (list and disk)."},
 				}},
-			}},
+			)},
 
 			// Actions (always visible).
 			decl.Composite{Background: bgBrush, Layout: decl.HBox{MarginsZero: true, Spacing: 8}, Children: []decl.Widget{
@@ -367,6 +402,9 @@ func Run(ctx context.Context, e *engine.Engine) error {
 	u.initGDI()
 	defer u.disposeGDI()
 	enableDarkTitleBar(uintptr(u.mw.Handle()))
+	for _, tv := range []*walk.TableView{u.issueTable, u.ipm.route.tv, u.ipm.services.tv, u.ipm.sla.tv, u.ipm.incidents.tv} {
+		darkenTable(tv)
+	}
 
 	u.selectTab(0)
 
@@ -389,11 +427,29 @@ func Run(ctx context.Context, e *engine.Engine) error {
 	})
 
 	go u.consume(ctx)
+	go u.notifyLoop(ctx)
 	go func() { <-ctx.Done(); u.mw.Synchronize(func() { walk.App().Exit(0) }) }()
 
 	u.render(e.Latest())
 	u.mw.Run()
 	return nil
+}
+
+// gridPanel wraps a label grid so the panel fills the tab area (the spacers
+// make the wrapper greedy in both directions) while the grid itself stays
+// anchored top-left instead of being centred by the box layout.
+func gridPanel(assign **walk.Composite, cols int, children []decl.Widget) decl.Composite {
+	return decl.Composite{
+		AssignTo: assign, Visible: false, Background: panelBrush, StretchFactor: 4,
+		Layout: decl.HBox{Margins: mg(14, 10, 14, 10), Spacing: 0, Alignment: decl.AlignHNearVNear},
+		Children: []decl.Widget{
+			decl.Composite{Background: panelBrush, Layout: decl.VBox{MarginsZero: true, Spacing: 0, Alignment: decl.AlignHNearVNear}, Children: []decl.Widget{
+				decl.Composite{Background: panelBrush, Layout: decl.Grid{Columns: cols, Spacing: 5, MarginsZero: true}, Children: children},
+				decl.VSpacer{},
+			}},
+			decl.HSpacer{},
+		},
+	}
 }
 
 func cell(assign **walk.Label, color walk.Color, font decl.Font) decl.Label {
@@ -542,6 +598,7 @@ func (u *ui) setupTray() error {
 	}
 	add("&Show dashboard", u.showWindow)
 	add("Run &bufferbloat test", func() { u.showWindow(); u.onBufferbloat() })
+	add("Run service &checks now", func() { u.showWindow(); u.selectTab(2); u.onCheckNow() })
 	ni.ContextMenu().Actions().Add(walk.NewSeparatorAction())
 	add("&Quit", func() { walk.App().Exit(0) })
 	ni.MouseDown().Attach(func(x, y int, button walk.MouseButton) {
@@ -706,6 +763,7 @@ func (u *ui) render(s model.Snapshot) {
 
 	u.renderConnection(s)
 	u.renderDNS(s)
+	u.renderIPM(s)
 
 	if issues := u.eng.Issues(); len(issues) != len(u.issueData) {
 		u.rebuildIssues(issues)
