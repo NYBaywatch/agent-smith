@@ -6,11 +6,15 @@ package model
 import (
 	"time"
 
+	"github.com/NYBaywatch/agent-smith/internal/baseline"
+	"github.com/NYBaywatch/agent-smith/internal/bgp"
 	"github.com/NYBaywatch/agent-smith/internal/bufferbloat"
 	"github.com/NYBaywatch/agent-smith/internal/dnsprobe"
 	"github.com/NYBaywatch/agent-smith/internal/ispinfo"
 	"github.com/NYBaywatch/agent-smith/internal/metrics"
 	"github.com/NYBaywatch/agent-smith/internal/netinfo"
+	"github.com/NYBaywatch/agent-smith/internal/pathmon"
+	"github.com/NYBaywatch/agent-smith/internal/synth"
 	"github.com/NYBaywatch/agent-smith/internal/sysinfo"
 )
 
@@ -57,6 +61,58 @@ type Snapshot struct {
 	Conn        *ispinfo.Info           // public IP / ISP / ASN (nil until looked up)
 	Bufferbloat *bufferbloat.Result     // last on-demand test, nil until run
 	Verdict     Verdict
+
+	// --- Internet performance monitoring (single-vantage-point IPM) ---
+
+	// Synthetics holds the rolling result of every HTTP synthetic check
+	// (SaaS / cloud / CDN / AI API / custom), in configured order.
+	Synthetics []synth.Summary
+	// Paths is the newest hop-by-hop traceroute per destination.
+	Paths []pathmon.Path
+	// RouteChanges lists recent detected path changes, newest first.
+	RouteChanges []pathmon.RouteChange
+	// PathDiag is the "where does degradation start" reading of the path to
+	// the primary anchor (HopIndex -1 when the path is clean or unknown).
+	PathDiag pathmon.Diagnosis
+	// BGP is the RIPEstat reachability of the connection's own public prefix
+	// (nil until looked up).
+	BGP *bgp.Status
+	// DNSAuth holds timed queries sent straight to authoritative nameservers.
+	DNSAuth []dnsprobe.AuthResult
+	// SLA carries the long-term availability / latency summaries, baseline and
+	// SLO compliance for the key series.
+	SLA []SLAEntry
+	// Incident is the currently open incident (grouped from consecutive
+	// degraded verdicts), nil when healthy.
+	Incident *IncidentRef
+	// AlertRaw / AlertIncidents are the "alert compression" counters: raw
+	// degraded ticks observed vs incidents they were folded into.
+	AlertRaw, AlertIncidents int
+}
+
+// SLAEntry is the long-term view of one monitored series.
+type SLAEntry struct {
+	Key        string // series key, e.g. "internet", "gateway", "http:<url>"
+	Name       string // display name
+	Kind       string // "ping" | "http"
+	Hour       baseline.Summary
+	Day        baseline.Summary
+	Week       baseline.Summary
+	Baseline   baseline.Baseline
+	Compliance baseline.Compliance // against the configured SLO, over 24 h
+	CurrentMs  float64             // latest value compared against the baseline
+	Z          float64             // robust z-score of CurrentMs vs baseline
+	Anomalous  bool
+}
+
+// IncidentRef is a lightweight copy of the open incident for snapshots.
+type IncidentRef struct {
+	ID       int
+	Start    time.Time
+	Culprit  Culprit
+	Peak     Severity
+	Ticks    int
+	Headline string
 }
 
 // Culprit is the segment most likely responsible for degradation.
@@ -70,6 +126,7 @@ const (
 	CulpritISPAccess
 	CulpritUpstream
 	CulpritDNS
+	CulpritRemoteService // a specific site/API/SaaS is failing while the path is fine
 	CulpritUnknown
 )
 
@@ -89,6 +146,8 @@ func (c Culprit) String() string {
 		return "Upstream internet"
 	case CulpritDNS:
 		return "DNS"
+	case CulpritRemoteService:
+		return "Remote service"
 	default:
 		return "Unknown"
 	}

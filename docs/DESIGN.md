@@ -33,7 +33,7 @@ Design principles:
 3. **No admin required for the core loop.** Use the Windows ICMP API, not raw sockets.
 4. **No snake oil.** We measure and explain; we don't claim magic "boosters."
 5. **UI-agnostic engine.** A pure-Go engine drives both a headless CLI dashboard
-   (CI-testable, no display) and a native Win32 GUI (lxn/walk).
+   (CI-testable, no display) and the mobile-style desktop UI (Wails v2 / WebView2).
 
 ---
 
@@ -167,15 +167,19 @@ Full numeric thresholds live in `internal/classifier` and are unit-tested.
 | Language | Go 1.26 | — |
 | Syscalls | `golang.org/x/sys/windows` | ICMP API, wlanapi, iphlpapi |
 | System/Net stats | gopsutil v4 | `github.com/shirou/gopsutil/v4` |
-| Native Win32 GUI | **lxn/walk** (native widgets, no CGO, Windows-only — matches "native Windows app") | `github.com/lxn/walk` |
-| Tray / window | walk `NotifyIcon` + `MainWindow` | — |
+| Desktop UI | **Wails v2** (WebView2) — vanilla HTML/CSS/JS, no bundler | `github.com/wailsapp/wails/v2` |
+| Tray icon | `fyne.io/systray` (pure Go on Windows) | `fyne.io/systray` |
+| Notifications | Windows toasts via `beeep` | `github.com/gen2brain/beeep` |
 | CLI dashboard | stdlib + ANSI | — |
 | Manifest/resources | `github.com/tc-hib/go-winres` (DPI + common controls v6) | build-time |
 
-**GUI choice rationale:** walk renders *real* Win32 controls (native look, tiny binary, no
-bundled browser/OpenGL), which is exactly right for a lightweight always-on system-tray
-monitor. Fyne/Wails/Gio are cross-platform but heavier (OpenGL or an embedded webview) and
-less "native Windows." Since the brief is explicitly a *native Windows app*, walk wins.
+**GUI choice rationale:** lxn/walk (real Win32 controls) was the right call for the v0.3
+tray monitor, but the mobile-style redesign (§10) needs rounded cards, a bottom tab bar,
+bottom sheets and transitions that Win32 controls cannot give without hand-painting
+everything. WebView2 is on every Windows 11 machine and Wails v2 needs no cgo, so the
+binary stays a single exe and CI stays Go-only. Fyne needs a C compiler; Gio would mean
+hand-building every table and text layout. The walk implementation lives in git
+history (commit b6f12d4 and earlier).
 
 Windows APIs called directly: `IcmpCreateFile`/`IcmpSendEcho2`, `GetAdaptersAddresses`,
 `GetIfTable2`/`GetIfEntry2`, `WlanOpenHandle`/`WlanEnumInterfaces`/`WlanQueryInterface`.
@@ -190,12 +194,22 @@ internal/metrics       Sample, Window stats (percentiles, EWMA, RFC3550 jitter),
 internal/probe         ICMP ping (Windows API) + cross-platform fallback, traceroute
 internal/netinfo       default gateway, interfaces (media/wired-wireless/errors), Wi-Fi RSSI
 internal/sysinfo       CPU/mem/net throughput, top processes (gopsutil)
-internal/dnsprobe      DNS resolution latency
+internal/dnsprobe      DNS resolution latency (+ authoritative nameserver timing)
 internal/bufferbloat   load-generating bufferbloat grader
-internal/classifier    bottleneck decision tree (+ tests)
-internal/engine        orchestrates probes on a schedule → Snapshot stream
-internal/ui/cli        live terminal dashboard
-internal/ui/gui        walk tray + dashboard window (build tag windows)
+internal/classifier    bottleneck decision tree (+ IPM refinement, tests)
+internal/synth         synthetic HTTP checks (httptrace phases, CDN edge, presets)
+internal/pathmon       multi-probe traceroute, segments, degraded-hop reading, route changes
+internal/asn           IP → ASN / AS name via Team Cymru DNS (cached)
+internal/bgp           own-prefix BGP visibility via RIPEstat
+internal/baseline      per-minute buckets, 7-day retention, SLA, baseline, anomaly, SLO
+internal/incident      groups degraded verdicts into incidents (alert compression)
+internal/ispinfo       public IP / ISP / ASN + support directory
+internal/config        config.json: anchors, checks, SLO, cadences, notifications
+internal/store         state.json persistence (history, issues, baselines, incidents)
+internal/engine        orchestrates probes + IPM loops on a schedule → Snapshot stream
+internal/ui/cli        live terminal dashboard + one-shot formatters
+internal/ui/web        Wails/WebView2 mobile-style UI: DTOs, bound App, tray, toasts;
+                       embedded frontend/ (index.html, app.css, app.js) (build tag windows)
 docs/DESIGN.md         this document
 ```
 
@@ -205,11 +219,16 @@ classifier + CLI dashboard. Cross-platform-buildable core, Windows ICMP backend.
 **v0.2:** Wi‑Fi RSSI, interface stats, DNS latency, system contention, traceroute,
 richer classifier confidence.
 
-**v0.3:** native walk GUI (tray + dashboard, live sparklines), on-demand bufferbloat test,
-rolling history persistence, desktop alerts when a segment degrades.
+**v0.3 (done):** native GUI (tray + dashboard, live sparklines), on-demand bufferbloat
+test, rolling history persistence, desktop alerts when an incident opens/resolves.
 
-**v1.0:** signed release exe, auto-start option, configurable targets (add your game's
-servers), exportable reports.
+**v0.4 (done):** internet performance monitoring — synthetic HTTP checks, hop-by-hop path
+with ASNs, BGP visibility, authoritative DNS, 7-day SLA/baselines, anomaly detection,
+incidents; configurable targets/checks via `config.json`; `--report` text export (§9).
+
+**v0.5 (done):** mobile-style UI on Wails v2 / WebView2 replacing the walk GUI (§10).
+
+**v1.0:** signed release exe, auto-start option, richer exportable reports.
 
 ---
 
@@ -225,3 +244,134 @@ servers), exportable reports.
   settings).
 - **Admin:** core loop runs unprivileged. Some adapter detail may be richer with admin; we
   degrade gracefully and never *require* elevation.
+
+---
+
+## 9. Internet performance monitoring (single vantage point)
+
+Commercial IPM (Catchpoint / LogicMonitor IPM, ThousandEyes) watches DNS, CDN, BGP,
+ISPs and SaaS from thousands of global agents. Agent Smith implements the same
+*layers* from one vantage point — this PC — which is the view that answers "is it
+me or is it them?". Nothing here pretends to see the internet from elsewhere.
+
+| Commercial IPM capability | Agent Smith | Package |
+|---|---|---|
+| Synthetic website / API / SaaS monitoring | HTTP checks every 60 s, `httptrace` phases (DNS, connect, TLS, TTFB, download), availability, 20-result window; 18 presets + custom | `synth` |
+| CDN monitoring | Edge / PoP parsed from `cf-ray`, `x-served-by`, `x-amz-cf-pop`, Akamai and Google headers | `synth` |
+| Cloud provider monitoring | Regional storage front doors for AWS, Azure, GCP, OCI | `synth` presets |
+| Hop-by-hop path visualization | Traceroute to every anchor every 3 min, 3 probes/hop, rDNS + ASN per hop, segments | `pathmon`, `asn` |
+| Topology-aware probable cause | `FirstDegradedHop` feeds the classifier (§9.1) | `pathmon`, `classifier` |
+| Route-change detection | Hop-signature diff per destination, silent hops ignored | `pathmon.Monitor` |
+| BGP monitoring | RIPEstat `routing-status` for the connection's own IP, hourly | `bgp` |
+| DNS monitoring | Per-resolver latency + authoritative nameserver timing every 5 min | `dnsprobe` |
+| SLA tracking | 1 h / 24 h / 7 d availability + p95, SLO compliance, error budget | `baseline` |
+| AI-driven anomaly detection | Robust baseline (median/MAD) + z-score (§9.2) | `baseline` |
+| Alert-storm compression | Degraded ticks grouped into incidents (§9.3) | `incident` |
+| Independent outage validation | Cross-checks synthetics vs ICMP rings (§9.4) | `classifier` |
+| Global vantage points, RUM, session replay | *Not implemented* — needs remote agents / browser instrumentation | — |
+
+### 9.1 Reading a traceroute (`pathmon.FirstDegradedHop`)
+
+Loss and RTT at intermediate hops are unreliable on their own: routers
+de-prioritise or rate-limit the ICMP they *generate* while forwarding traffic
+unimpeded. The reading rules are the ones a network engineer applies by hand:
+
+1. **Loss** at a hop (≥ 5 %) counts only if every later *responding* hop also
+   shows ≥ 5 % loss. Loss that vanishes downstream is rate limiting, not loss.
+2. **Latency** — a jump of ≥ 40 ms over the previous responding hop counts only
+   if every later responding hop stays within 5 ms of that level. A spike confined
+   to one router is slow ICMP generation, not path latency.
+3. Loss is checked before latency (the more damaging symptom wins).
+
+**Segments:** private addresses before the first public hop are *LAN*; the ISP span
+runs from the first public hop through the last hop carrying the ISP's ASN, where
+the ISP's ASN is the first *known* ASN at or after the first public hop (edge
+routers often have no mapping of their own, so unmapped hops inside the span are
+still *ISP*); the last hop of a reached path is *Destination*; everything else is
+*Transit*. A silent hop inherits the segment of the hop before it.
+
+The classifier uses the diagnosis of the path to the primary anchor: an *Upstream*
+verdict whose first degraded hop is in the ISP segment becomes *ISP access link*
+(confidence 0.75), in the LAN segment becomes *LAN / router*; the detail always cites
+the hop, address and AS.
+
+### 9.2 Baselines, SLA and anomaly detection (`baseline`)
+
+Every tick contributes one sample per ring (window mean, or a failure when the
+target has no replies); every synthetic run contributes its total time. Samples
+fold into **per-minute buckets** (sent, received, sum, min, max, p95) retained for
+**7 days** and persisted in `state.json`.
+
+- **Summary(window)** — availability = received / sent; mean is sample-weighted;
+  p50 and p95 are approximated from per-minute means / p95s weighted by samples.
+- **Baseline** — median and MAD of the per-minute means over the last 24 h; valid
+  once ≥ 15 non-empty minutes exist.
+- **Anomaly** — robust z = (x − median) / (1.4826·MAD + 0.5 ms). The 0.5 ms floor
+  keeps ultra-stable links from flagging sub-millisecond wobble. Anomalous when
+  z ≥ 4 **and** x ≥ median + 5 ms. An anomalous internet RTT on an otherwise
+  healthy verdict raises severity to *Watch* with a "latency above your normal
+  baseline" headline.
+- **SLO** — default 99.9 % availability and internet p95 ≤ 100 ms over 24 h (only
+  the availability objective applies to LAN/ISP/HTTP series). Error budget =
+  (1 − SLO) × window; `ErrorBudgetLeft` = (budget − downtime) / budget, negative
+  once exhausted.
+
+### 9.3 Incidents (`incident.Grouper`)
+
+A verdict at *Degraded* or worse **opens** an incident immediately (a one-tick flap
+is still recorded; its tick count and duration make its size obvious). Further
+degraded ticks extend it: peak severity, latest headline, latest fix, and the list
+of culprits seen — a Wi-Fi incident that turns into an ISP one stays a single
+incident while the connection is continuously unhealthy. It **closes** after 45 s
+of healthy ticks, with `End` set to the last degraded tick. The engine emits
+open/close events for tray notifications, and the ratio of raw degraded ticks to
+incidents is shown as the alert-compression figure.
+
+### 9.4 Service-side faults and outage validation (`classifier`)
+
+Rules run *after* the core most-local-first tree, so a local fault still wins:
+
+- **Remote service** — the path is fine (nothing at/above Degraded) but a synthetic
+  check has failed ≥ 2 times in a row → *Remote service*, Watch for one check,
+  Degraded for three or more: "your gateway, ISP edge and internet anchors are
+  healthy; the fault is on the remote service or its provider".
+- **Captive portal / proxy** — every HTTP check (≥ 3) is failing while ICMP to the
+  internet works → *LAN / router*, Degraded: sign-in page, proxy, security software,
+  broken DNS or a clock far enough off to fail TLS.
+- **BGP** — if the own prefix is announced but seen by < 90 % of route collectors,
+  a note is appended and severity is at least *Watch*.
+
+### 9.5 Persistence
+
+`state.json` is now **version 2**: history and issues as before, plus the baseline
+series, closed/open incidents with the next incident id, and recent route changes.
+A version-1 file loads with those fields empty. User settings live in
+`config.json` (`internal/config`): anchors, synthetic categories / custom / disabled
+checks and cadence, path cadence and probes per hop, SLO, notifications.
+
+---
+
+## 10. Mobile-style UI (Wails v2 / WebView2)
+
+Full spec: [`docs/superpowers/specs/2026-09-14-mobile-ui-wails-design.md`](superpowers/specs/2026-09-14-mobile-ui-wails-design.md).
+
+- **Window:** frameless, 440×880 default, 380×620 minimum, resizable; a slim header is
+  the drag region with minimise / hide-to-tray. Ctrl+wheel zoom is left to WebView2.
+- **Screens** (bottom tab bar): Home · Services · Route · Insights · Events; each is a
+  vertical feed of cards, exactly one mounted at a time. Details open as **bottom
+  sheets** (service timing waterfall, hop detail, event drill-down, incident timeline).
+- **Tokens:** dark only by choice (an always-on monitor); page `#0e1116`, surface
+  `#171b22`, accent `#b69dff` (active tab, primary button); status good / warn / bad
+  `#31c46e` / `#f2b53a` / `#ef5b5b` always paired with a label; chart series NET / ISP /
+  LAN `#3987e5` / `#d95926` / `#199e70`, validated for colour-vision deficiency
+  (adjacent-pair CVD ΔE ≥ 9.4, normal-vision ΔE ≥ 26.5, ≥ 3:1 on the surface).
+- **Go ⇄ JS contract:** `web.App` is bound and reachable as `window.go.web.App.*`
+  (`Snapshot`, `History`, `Issues`, `Incidents`, `Info`, `RunBufferbloat`, `RunChecks`,
+  `Trace`, `ClearIssues`, `ClearIncidents`, `Minimise`, `Hide`, `Quit`, `OpenURL`);
+  the engine's snapshot is pushed as the `snapshot` event on every tick and incident
+  transitions as `incident`. DTOs (`internal/ui/web/dto.go`) are cross-platform,
+  snake_case JSON with millisecond numbers, and unit-tested.
+- **Tray & toasts:** `fyne.io/systray` menu (show, run checks, bufferbloat, quit);
+  `beeep` Windows toasts when an incident opens / resolves. Close hides to the tray.
+- **Build:** `go build -tags desktop,production`; a `-tags uitest` build adds a
+  loopback control endpoint for screenshot-driven UI checks.

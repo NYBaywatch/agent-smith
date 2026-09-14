@@ -37,3 +37,6 @@ Thumbs.db
 /data/
 *.db
 *.sqlite
+
+# Brainstorming visual-companion sessions
+.superpowers/

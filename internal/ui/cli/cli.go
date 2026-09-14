@@ -113,6 +113,9 @@ func render(s model.Snapshot) {
 			gradeColor(bb.Grade), bb.Grade, reset, round(bb.Added), bb.DownloadMbps))
 	}
 
+	b.WriteString("\n")
+	renderIPM(&b, s)
+
 	b.WriteString("\n" + gray + "  Ctrl-C to quit" + reset + "\033[J\n")
 	fmt.Print(b.String())
 }
