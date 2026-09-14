@@ -117,8 +117,10 @@ func TestTraceReachesDestination(t *testing.T) {
 	if got := p.Signature(); got != "192.168.1.1>67.83.0.1>*>4.68.0.1>1.1.1.1" {
 		t.Errorf("signature %q", got)
 	}
-	if p.Elapsed <= 0 {
-		t.Error("expected Elapsed > 0")
+	// The fake pinger answers instantly, so on a coarse clock Elapsed can
+	// legitimately round to zero; it must never be negative.
+	if p.Elapsed < 0 {
+		t.Error("expected Elapsed >= 0")
 	}
 }
 
