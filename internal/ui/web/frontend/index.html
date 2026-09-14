@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Smith</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- Slim header: the drag region of the frameless window -->
+  <header id="titlebar" style="--wails-draggable:drag">
+    <img src="app.png" alt="" class="brand-icon">
+    <span class="brand">Agent Smith</span>
+    <span id="hdr-status" class="hdr-status" aria-live="polite"></span>
+    <div class="win-controls" style="--wails-draggable:no-drag">
+      <button class="win-btn" id="btn-min" title="Minimise" aria-label="Minimise">
+        <svg viewBox="0 0 10 10" width="10" height="10"><path d="M0 5h10" stroke="currentColor" stroke-width="1.2"/></svg>
+      </button>
+      <button class="win-btn" id="btn-hide" title="Hide to tray" aria-label="Hide to tray">
+        <svg viewBox="0 0 10 10" width="10" height="10"><path d="M1 1l8 8M9 1l-8 8" stroke="currentColor" stroke-width="1.2"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main id="screens">
+    <section class="screen is-active" data-screen="home" aria-label="Home"></section>
+    <section class="screen" data-screen="services" aria-label="Services"></section>
+    <section class="screen" data-screen="route" aria-label="Route"></section>
+    <section class="screen" data-screen="insights" aria-label="Insights"></section>
+    <section class="screen" data-screen="events" aria-label="Events"></section>
+  </main>
+
+  <nav id="tabbar" aria-label="Sections">
+    <button class="tab is-active" data-tab="home">
+      <svg viewBox="0 0 24 24"><path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5h-5v5H5a1 1 0 0 1-1-1z"/></svg>
+      <span>Home</span>
+    </button>
+    <button class="tab" data-tab="services">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c3 3 3 13 0 16M12 4c-3 3-3 13 0 16"/></svg>
+      <span>Services</span>
+    </button>
+    <button class="tab" data-tab="route">
+      <svg viewBox="0 0 24 24"><circle cx="5" cy="18" r="2.2"/><circle cx="19" cy="6" r="2.2"/><path d="M7 17c5 0 5-10 10-10"/></svg>
+      <span>Route</span>
+    </button>
+    <button class="tab" data-tab="insights">
+      <svg viewBox="0 0 24 24"><path d="M4 19h16M6 16V10M11 16V6M16 16v-4M21 16V8"/></svg>
+      <span>Insights</span>
+    </button>
+    <button class="tab" data-tab="events">
+      <svg viewBox="0 0 24 24"><path d="M6 20V5a1 1 0 0 1 1-1h10l-3 4 3 4H7"/></svg>
+      <span>Events</span>
+      <i class="badge" id="events-badge" hidden></i>
+    </button>
+  </nav>
+
+  <!-- Bottom sheet -->
+  <div id="sheet-scrim" hidden></div>
+  <aside id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden>
+    <div class="sheet-handle"></div>
+    <div class="sheet-head">
+      <h2 id="sheet-title"></h2>
+      <button class="icon-btn" id="sheet-close" aria-label="Close">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body" id="sheet-body"></div>
+  </aside>
+
+  <div id="toasts" aria-live="polite"></div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

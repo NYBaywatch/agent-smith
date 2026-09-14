@@ -12,11 +12,11 @@ try {
     New-Item -ItemType Directory -Force -Path dist | Out-Null
 
     Write-Host "Building GUI binary (dist\agent-smith.exe)…"
-    go build -trimpath -ldflags "-s -w -H windowsgui -X main.version=$Version" -o dist\agent-smith.exe .\cmd\agent-smith
+    go build -trimpath -tags desktop,production -ldflags "-s -w -H windowsgui -X main.version=$Version" -o dist\agent-smith.exe .\cmd\agent-smith
     if ($LASTEXITCODE -ne 0) { throw "GUI build failed" }
 
     Write-Host "Building console binary (dist\agent-smith-cli.exe)…"
-    go build -trimpath -ldflags "-s -w -X main.version=$Version" -o dist\agent-smith-cli.exe .\cmd\agent-smith
+    go build -trimpath -tags desktop,production -ldflags "-s -w -X main.version=$Version" -o dist\agent-smith-cli.exe .\cmd\agent-smith
     if ($LASTEXITCODE -ne 0) { throw "console build failed" }
 
     Write-Host "Done. Binaries in $root\dist"

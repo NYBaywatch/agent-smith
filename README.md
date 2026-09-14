@@ -128,10 +128,30 @@ no live BGP feed (RIPEstat is polled once an hour); no HTTP/3, ECN or MQTT probe
 - 🗂️ **Event log with drill-down** — every detected problem is recorded with a timestamp,
   the exact degraded metrics, system state, and a `ps`-style snapshot of the busiest
   processes; **persists across sessions**, alongside incidents and 7 days of baselines.
-- 🖥️ **Native tray app** (lxn/walk): dark dashboard with a live RTT history sparkline,
-  tabs for **Path · Route · Services · SLA · Connection · System · DNS · Events**,
-  tooltips on every metric, and Ctrl+wheel font scaling — plus a cross-platform CLI
-  dashboard and `--bufferbloat` / `--trace` / `--check` / `--report` one-shot modes.
+- 📱 **Mobile-style dashboard** (Wails v2 + WebView2): a phone-shaped frameless
+  window with bottom tabs **Home · Services · Route · Insights · Events**, cards,
+  bottom-sheet details (timing waterfall per service, hop detail, event drill-down,
+  incident timeline), a crosshair RTT chart, a tray icon and Windows toast
+  notifications when incidents open/resolve; Ctrl+wheel zoom — plus a
+  cross-platform CLI dashboard and `--bufferbloat` / `--trace` / `--check` /
+  `--report` one-shot modes.
+
+### Screens
+
+- **Home** — status ring (24 h error budget left), verdict + fix, latency / jitter /
+  loss / bufferbloat tiles with a sparkline and your baseline, the RTT chart
+  (5 m / 20 m / 1 h), the LAN → ISP → internet path, this PC's CPU / memory / GPU /
+  throughput, your connection (ISP, IP, ASN, support line, BGP) and DNS resolvers.
+- **Services** — every synthetic HTTP check grouped by category with status, TTFB
+  and total; tap one for the DNS → connect → TLS → wait → download waterfall,
+  availability, last status and URL; *Check now* runs them all.
+- **Route** — hop-by-hop ladder per anchor with reverse DNS / AS, per-hop RTT and
+  loss, the first-degraded-hop reading, route changes, and *Trace a host*.
+- **Insights** — 24 h availability and error budget against your SLO, availability /
+  p95 / baseline per series with anomaly flags, BGP reachability, authoritative
+  DNS timing, and the alert-compression ratio.
+- **Events** — grouped incidents (open ones badged on the tab) and the raw event
+  log; tap for the interpreted measurements, suggested fix and process snapshot.
 
 ## Architecture
 
@@ -140,9 +160,9 @@ no live BGP feed (RIPEstat is polled once an hour); no HTTP/3, ECN or MQTT probe
   probe (ICMP API) ───▶│  schedules concentric-ring probes (gateway/ISP/internet)        │
   netinfo (iphlpapi) ─▶│  auto-detects active adapter + Wi-Fi/NIC                         │──▶ model.Snapshot ──▶ classifier ──▶ Verdict
   sysinfo (gopsutil  ─▶│  samples CPU / memory / GPU / throughput                         │            │
-   + PDH GPU) │         │  measures DNS latency (+ authoritative NS); records history      │            ├──▶ ui/gui (walk: window + tray;
-  bufferbloat ────────▶│  on-demand latency-under-load grade                              │            │      Path · Route · Services · SLA ·
-  synth (httptrace) ──▶│  synthetic SaaS/cloud/CDN/AI-API checks every 60 s               │            │      Connection · System · DNS · Events)
+   + PDH GPU) │         │  measures DNS latency (+ authoritative NS); records history      │            ├──▶ ui/web (Wails/WebView2: Home ·
+  bufferbloat ────────▶│  on-demand latency-under-load grade                              │            │      Services · Route · Insights ·
+  synth (httptrace) ──▶│  synthetic SaaS/cloud/CDN/AI-API checks every 60 s               │            │      Events; tray + toasts)
   pathmon + asn ──────▶│  hop-by-hop traceroute + ASN + route changes every 3 min          │            └──▶ ui/cli (live dashboard)
   bgp (RIPEstat) ─────▶│  own-prefix visibility hourly                                    │
   baseline ───────────▶│  7-day per-minute buckets → SLA / baseline / anomaly             │
@@ -158,9 +178,12 @@ unit-tested function. See [`docs/DESIGN.md`](docs/DESIGN.md) for the full design
 ## Design highlights
 
 - **No admin required.** Uses the **Windows ICMP API** (`IcmpSendEcho`), not raw sockets.
-- **Native Windows UI** via [lxn/walk](https://github.com/lxn/walk) — real Win32 widgets,
-  tiny binary, system-tray friendly, dark themed.
-- **UI-agnostic engine** in pure Go; the CLI is fully testable in CI without a display.
+- **Mobile-style UI on [Wails v2](https://wails.io)** — the dashboard renders in the
+  WebView2 runtime that ships with Windows 11, so it is one ~18 MB exe with no C
+  compiler needed; the front end is vanilla HTML/CSS/JS with no bundler, so CI
+  stays Go-only.
+- **UI-agnostic engine** in pure Go, unchanged by the UI; the CLI dashboard remains and
+  is fully testable in CI without a display.
 - **Honest.** No telemetry, no snake oil. It diagnoses and explains.
 
 ## Build & run
@@ -168,8 +191,8 @@ unit-tested function. See [`docs/DESIGN.md`](docs/DESIGN.md) for the full design
 ```sh
 go build ./...
 go test ./...
-# Windows GUI build (no console window):
-go build -ldflags="-H windowsgui" -o agent-smith.exe ./cmd/agent-smith
+# Windows GUI build (no console window) — scripts\build.ps1 does the same:
+go build -tags desktop,production -ldflags="-H windowsgui" -o agent-smith.exe ./cmd/agent-smith
 # Headless live dashboard (any platform):
 go run ./cmd/agent-smith --cli
 # One-shot modes:
@@ -178,6 +201,11 @@ go run ./cmd/agent-smith --trace 1.1.1.1    # enriched traceroute: loss, RTT, rD
 go run ./cmd/agent-smith --check            # run every synthetic HTTP check once, print timings
 go run ./cmd/agent-smith --report           # SLA / baseline / incident report from persisted history
 ```
+
+The only prerequisites are Go and the WebView2 runtime (preinstalled on Windows 11;
+Windows 10 needs Microsoft's Evergreen runtime installer). A `-tags uitest` build
+adds a loopback control endpoint used for screenshot-driven UI checks; it is never
+part of a release build.
 
 Pre-built Windows binaries are attached to each [release](https://github.com/NYBaywatch/agent-smith/releases).
 

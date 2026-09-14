@@ -59,12 +59,23 @@ LogicMonitor IPM): the same internet layers, measured from this PC.
   degraded-hop reading), `--check` (run all synthetic checks once) and `--report`
   (SLA / baseline / incident / route-change report from persisted history).
 
+### Changed — mobile-style UI
+- **GUI rebuilt on Wails v2 / WebView2** as a phone-shaped frameless window
+  (440×880, min 380×620) with five bottom tabs — Home · Services · Route ·
+  Insights · Events — and bottom-sheet details: a per-service timing waterfall
+  (DNS → connect → TLS → wait → download), hop detail, event drill-down and an
+  incident timeline. The interim eight-tab walk layout is superseded.
+- RTT chart with a crosshair tooltip and 5 m / 20 m / 1 h range chips; status ring
+  showing the 24 h error budget; sparkline and baseline on the latency tile.
+- Windows toast notifications (`beeep`) replace the tray balloons; the tray icon
+  (`fyne.io/systray`) keeps show / run checks / bufferbloat / quit.
+- Ctrl+wheel zoom (WebView2) replaces the custom font scaling.
+- `lxn/walk` and `lxn/win` removed; the GUI build now needs
+  `-tags desktop,production` (`scripts\build.ps1` and CI updated).
+
 ### Changed
-- GUI now has eight tabs (Path · Route · Services · SLA · Connection · System · DNS
-  · Events); default window is 860×1000 (min 800×600); header reads
-  "network · internet · system performance".
-- Connection tab gains BGP prefix / visibility rows; DNS tab gains authoritative
-  nameserver rows; Events tab gains the incident list and a Clear Incidents button.
+- BGP prefix / visibility live in the Connection card; authoritative nameserver
+  timing under Insights; the incident list and a Clear incidents button on Events.
 - `state.json` is version 2 (adds baseline series, incidents, route changes);
   version-1 files load unchanged.
 - The Microsoft Teams preset targets `https://teams.microsoft.com/favicon.ico`

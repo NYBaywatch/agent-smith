@@ -33,7 +33,7 @@ Design principles:
 3. **No admin required for the core loop.** Use the Windows ICMP API, not raw sockets.
 4. **No snake oil.** We measure and explain; we don't claim magic "boosters."
 5. **UI-agnostic engine.** A pure-Go engine drives both a headless CLI dashboard
-   (CI-testable, no display) and a native Win32 GUI (lxn/walk).
+   (CI-testable, no display) and the mobile-style desktop UI (Wails v2 / WebView2).
 
 ---
 
@@ -167,15 +167,19 @@ Full numeric thresholds live in `internal/classifier` and are unit-tested.
 | Language | Go 1.26 | — |
 | Syscalls | `golang.org/x/sys/windows` | ICMP API, wlanapi, iphlpapi |
 | System/Net stats | gopsutil v4 | `github.com/shirou/gopsutil/v4` |
-| Native Win32 GUI | **lxn/walk** (native widgets, no CGO, Windows-only — matches "native Windows app") | `github.com/lxn/walk` |
-| Tray / window | walk `NotifyIcon` + `MainWindow` | — |
+| Desktop UI | **Wails v2** (WebView2) — vanilla HTML/CSS/JS, no bundler | `github.com/wailsapp/wails/v2` |
+| Tray icon | `fyne.io/systray` (pure Go on Windows) | `fyne.io/systray` |
+| Notifications | Windows toasts via `beeep` | `github.com/gen2brain/beeep` |
 | CLI dashboard | stdlib + ANSI | — |
 | Manifest/resources | `github.com/tc-hib/go-winres` (DPI + common controls v6) | build-time |
 
-**GUI choice rationale:** walk renders *real* Win32 controls (native look, tiny binary, no
-bundled browser/OpenGL), which is exactly right for a lightweight always-on system-tray
-monitor. Fyne/Wails/Gio are cross-platform but heavier (OpenGL or an embedded webview) and
-less "native Windows." Since the brief is explicitly a *native Windows app*, walk wins.
+**GUI choice rationale:** lxn/walk (real Win32 controls) was the right call for the v0.3
+tray monitor, but the mobile-style redesign (§10) needs rounded cards, a bottom tab bar,
+bottom sheets and transitions that Win32 controls cannot give without hand-painting
+everything. WebView2 is on every Windows 11 machine and Wails v2 needs no cgo, so the
+binary stays a single exe and CI stays Go-only. Fyne needs a C compiler; Gio would mean
+hand-building every table and text layout. The walk implementation lives in git
+history (commit b6f12d4 and earlier).
 
 Windows APIs called directly: `IcmpCreateFile`/`IcmpSendEcho2`, `GetAdaptersAddresses`,
 `GetIfTable2`/`GetIfEntry2`, `WlanOpenHandle`/`WlanEnumInterfaces`/`WlanQueryInterface`.
@@ -204,7 +208,8 @@ internal/config        config.json: anchors, checks, SLO, cadences, notification
 internal/store         state.json persistence (history, issues, baselines, incidents)
 internal/engine        orchestrates probes + IPM loops on a schedule → Snapshot stream
 internal/ui/cli        live terminal dashboard + one-shot formatters
-internal/ui/gui        walk tray + dashboard window (build tag windows)
+internal/ui/web        Wails/WebView2 mobile-style UI: DTOs, bound App, tray, toasts;
+                       embedded frontend/ (index.html, app.css, app.js) (build tag windows)
 docs/DESIGN.md         this document
 ```
 
@@ -214,12 +219,14 @@ classifier + CLI dashboard. Cross-platform-buildable core, Windows ICMP backend.
 **v0.2:** Wi‑Fi RSSI, interface stats, DNS latency, system contention, traceroute,
 richer classifier confidence.
 
-**v0.3 (done):** native walk GUI (tray + dashboard, live sparklines), on-demand bufferbloat
+**v0.3 (done):** native GUI (tray + dashboard, live sparklines), on-demand bufferbloat
 test, rolling history persistence, desktop alerts when an incident opens/resolves.
 
 **v0.4 (done):** internet performance monitoring — synthetic HTTP checks, hop-by-hop path
 with ASNs, BGP visibility, authoritative DNS, 7-day SLA/baselines, anomaly detection,
 incidents; configurable targets/checks via `config.json`; `--report` text export (§9).
+
+**v0.5 (done):** mobile-style UI on Wails v2 / WebView2 replacing the walk GUI (§10).
 
 **v1.0:** signed release exe, auto-start option, richer exportable reports.
 
@@ -341,3 +348,30 @@ series, closed/open incidents with the next incident id, and recent route change
 A version-1 file loads with those fields empty. User settings live in
 `config.json` (`internal/config`): anchors, synthetic categories / custom / disabled
 checks and cadence, path cadence and probes per hop, SLO, notifications.
+
+---
+
+## 10. Mobile-style UI (Wails v2 / WebView2)
+
+Full spec: [`docs/superpowers/specs/2026-09-14-mobile-ui-wails-design.md`](superpowers/specs/2026-09-14-mobile-ui-wails-design.md).
+
+- **Window:** frameless, 440×880 default, 380×620 minimum, resizable; a slim header is
+  the drag region with minimise / hide-to-tray. Ctrl+wheel zoom is left to WebView2.
+- **Screens** (bottom tab bar): Home · Services · Route · Insights · Events; each is a
+  vertical feed of cards, exactly one mounted at a time. Details open as **bottom
+  sheets** (service timing waterfall, hop detail, event drill-down, incident timeline).
+- **Tokens:** dark only by choice (an always-on monitor); page `#0e1116`, surface
+  `#171b22`, accent `#b69dff` (active tab, primary button); status good / warn / bad
+  `#31c46e` / `#f2b53a` / `#ef5b5b` always paired with a label; chart series NET / ISP /
+  LAN `#3987e5` / `#d95926` / `#199e70`, validated for colour-vision deficiency
+  (adjacent-pair CVD ΔE ≥ 9.4, normal-vision ΔE ≥ 26.5, ≥ 3:1 on the surface).
+- **Go ⇄ JS contract:** `web.App` is bound and reachable as `window.go.web.App.*`
+  (`Snapshot`, `History`, `Issues`, `Incidents`, `Info`, `RunBufferbloat`, `RunChecks`,
+  `Trace`, `ClearIssues`, `ClearIncidents`, `Minimise`, `Hide`, `Quit`, `OpenURL`);
+  the engine's snapshot is pushed as the `snapshot` event on every tick and incident
+  transitions as `incident`. DTOs (`internal/ui/web/dto.go`) are cross-platform,
+  snake_case JSON with millisecond numbers, and unit-tested.
+- **Tray & toasts:** `fyne.io/systray` menu (show, run checks, bufferbloat, quit);
+  `beeep` Windows toasts when an incident opens / resolves. Close hides to the tray.
+- **Build:** `go build -tags desktop,production`; a `-tags uitest` build adds a
+  loopback control endpoint for screenshot-driven UI checks.
