@@ -250,6 +250,15 @@ Agent Smith writes a template to `%APPDATA%\AgentSmith\config.json` on first run
 Runtime state (RTT history, events, incidents, 7 days of baselines) lives next to
 it in `state.json`.
 
+## Credits
+
+The app icon and splash image are the *Agent Smith* still from *The Matrix*
+(© Warner Bros.), taken from [Wikipedia's non-free file](https://en.wikipedia.org/wiki/File:Agent_Smith_(The_Matrix_series_character).jpg)
+and used here as a fan homage. The source files live in `build/app.ico` and
+`internal/ui/web/frontend/splash.jpg`; swap them and re-run
+`rsrc -manifest build/agent-smith.manifest -ico build/app.ico -arch amd64 -o cmd/agent-smith/rsrc_windows.syso`
+to change the exe icon.
+
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). The character image above is not covered by it.

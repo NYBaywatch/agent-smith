@@ -671,6 +671,16 @@
   }
   async function refreshHistory() { S.history = (await bridge.call('History')) || []; }
 
+  // Splash: stays up at least 1.6 s, leaves once the engine has real readings, never past 6 s.
+  const splash = { shownAt: performance.now(), done: false, pinned: false };
+  function hideSplash(force) {
+    if (splash.done || (splash.pinned && !force)) return;
+    const wait = force ? 0 : Math.max(0, 1600 - (performance.now() - splash.shownAt));
+    setTimeout(() => { splash.done = true; $('#splash').classList.add('out'); }, wait);
+  }
+  window.__splash = (on) => { const el = $('#splash'); splash.pinned = on; if (on) { splash.done = false; el.classList.remove('out'); } else hideSplash(true); };
+  setTimeout(() => hideSplash(true), 6000);
+
   async function boot() {
     S.info = await bridge.call('Info');
     S.snap = await bridge.call('Snapshot');
@@ -678,6 +688,11 @@
     renderAll();
     bridge.on('snapshot', async (snap) => {
       S.snap = snap;
+      if (!splash.done) {
+        const st = $('#splash-status');
+        if (st) st.textContent = snap.verdict && snap.verdict.headline && snap.rings && snap.rings.length ? snap.verdict.headline : 'Taking the first readings…';
+        if (snap.rings && snap.rings.length) hideSplash(false);
+      }
       // History grows one point per tick; append locally and resync every 30 s.
       const last = S.history[S.history.length - 1];
       const rings = Object.fromEntries((snap.rings || []).map((r) => [r.ring, r]));
@@ -694,6 +709,7 @@
     });
     bridge.on('checks-done', () => toast('Service checks finished'));
     bridge.on('bufferbloat-done', (r) => { if (r && r.grade) toast(`Bufferbloat grade ${r.grade}`); });
+    if (!bridge.has()) setTimeout(() => hideSplash(false), 1200);
     if (!bridge.has()) setInterval(() => { S.snap = mock.Snapshot(); S.history.push({ t: S.snap.time, gw: 1 + Math.random(), isp: 9 + Math.random() * 3, net: 16 + Math.random() * 6 }); renderAll(); }, 1000);
     setInterval(() => refreshLists(), 20000);
   }

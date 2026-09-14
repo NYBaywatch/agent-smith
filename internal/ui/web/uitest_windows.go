@@ -7,6 +7,8 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
+	"sync"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -26,6 +28,24 @@ func init() {
 			js, _ := io.ReadAll(io.LimitReader(r.Body, 1<<16))
 			runtime.WindowExecJS(ctx, string(js))
 			w.WriteHeader(http.StatusNoContent)
+		})
+		// /log lets injected JS report back (POST from the page with
+		// mode:"no-cors"); GET returns everything logged so far.
+		var mu sync.Mutex
+		var lines []string
+		mux.HandleFunc("/log", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			if r.Method == http.MethodPost {
+				b, _ := io.ReadAll(io.LimitReader(r.Body, 1<<16))
+				mu.Lock()
+				lines = append(lines, string(b))
+				mu.Unlock()
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			_, _ = w.Write([]byte(strings.Join(lines, "\n")))
 		})
 		go func() { _ = http.Serve(ln, mux) }()
 	}

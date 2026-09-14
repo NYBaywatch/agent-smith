@@ -59,6 +59,15 @@ LogicMonitor IPM): the same internet layers, measured from this PC.
   degraded-hop reading), `--check` (run all synthetic checks once) and `--report`
   (SLA / baseline / incident / route-change report from persisted history).
 
+### Added — icon and splash screen
+- **Agent Smith character icon** (face-centred, rounded, 16–256 px) for the
+  exe, window, taskbar, tray and toasts, and as the header brand mark; a
+  **splash screen** with the same still fills the window while the engine takes
+  its first readings (at least 1.6 s, at most 6 s) and fades out once the path
+  is discovered, showing the first verdict as it goes. The image is the
+  *Agent Smith (The Matrix)* still hosted on Wikipedia as non-free content
+  (© Warner Bros.); see the Credits note in the README.
+
 ### Changed — mobile-style UI
 - **GUI rebuilt on Wails v2 / WebView2** as a phone-shaped frameless window
   (440×880, min 380×620) with five bottom tabs — Home · Services · Route ·

@@ -9,6 +9,18 @@
 <body>
 <div id="app">
 
+  <!-- Splash: shown while the engine takes its first readings, then fades out -->
+  <div id="splash" role="status" aria-label="Agent Smith is starting">
+    <div class="splash-art"><img src="splash.jpg" alt=""></div>
+    <div class="splash-text">
+      <div class="splash-kicker">Network · internet · system</div>
+      <h1 class="splash-title">Agent Smith</h1>
+      <p class="splash-line">Never send a human to do a machine's job.</p>
+      <div class="splash-bar"><i></i></div>
+      <div class="splash-status" id="splash-status">Finding your gateway and ISP edge…</div>
+    </div>
+  </div>
+
   <!-- Slim header: the drag region of the frameless window -->
   <header id="titlebar" style="--wails-draggable:drag">
     <img src="app.png" alt="" class="brand-icon">
