@@ -16,6 +16,7 @@ import (
 	"github.com/NYBaywatch/agent-smith/internal/metrics"
 	"github.com/NYBaywatch/agent-smith/internal/model"
 	"github.com/NYBaywatch/agent-smith/internal/pathmon"
+	"github.com/NYBaywatch/agent-smith/internal/store"
 	"github.com/NYBaywatch/agent-smith/internal/synth"
 )
 
@@ -282,6 +283,7 @@ type Snapshot struct {
 	SLO          SLO           `json:"slo"`
 	Incident     *IncidentRef  `json:"incident"`
 	Alerts       Alerts        `json:"alerts"`
+	Tests        TestsDTO      `json:"tests"`
 }
 
 // HistPoint is one downsampled RTT history point.
@@ -354,7 +356,9 @@ type BufferbloatResult struct {
 	IdleMs   float64 `json:"idle_ms"`
 	LoadedMs float64 `json:"loaded_ms"`
 	DownMbps float64 `json:"down_mbps"`
-	Error    string  `json:"error"`
+	Source   string  `json:"source,omitempty"`
+	Colo     string  `json:"colo,omitempty"`
+	Error    string  `json:"error,omitempty"`
 }
 
 // --- mapping ---
@@ -459,6 +463,7 @@ func BuildSnapshot(s model.Snapshot, slo baseline.SLO) Snapshot {
 		out.Headline.LossPct = st.Loss * 100
 		out.Headline.LossRating = ratingWord(metrics.RateLoss(st.Loss))
 	}
+	out.Tests = BuildTests(store.Tests{Bufferbloat: s.Bufferbloat, Speed: s.Speed, Stability: s.Stability, DNSBench: s.DNSBench})
 	if bb := s.Bufferbloat; bb != nil {
 		out.Headline.Bufferbloat = &Bufferbloat{
 			Grade: bb.Grade, AddedMs: ms(bb.Added), IdleMs: ms(bb.IdleRTT), LoadedMs: ms(bb.LoadedRTT), DownMbps: bb.DownloadMbps,

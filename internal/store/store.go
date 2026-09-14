@@ -9,10 +9,22 @@ import (
 	"path/filepath"
 
 	"github.com/NYBaywatch/agent-smith/internal/baseline"
+	"github.com/NYBaywatch/agent-smith/internal/bufferbloat"
+	"github.com/NYBaywatch/agent-smith/internal/dnsbench"
 	"github.com/NYBaywatch/agent-smith/internal/incident"
 	"github.com/NYBaywatch/agent-smith/internal/model"
 	"github.com/NYBaywatch/agent-smith/internal/pathmon"
+	"github.com/NYBaywatch/agent-smith/internal/speedtest"
+	"github.com/NYBaywatch/agent-smith/internal/stability"
 )
+
+// Tests holds the last result of each on-demand test.
+type Tests struct {
+	Bufferbloat *bufferbloat.Result `json:"bufferbloat,omitempty"`
+	Speed       *speedtest.Result   `json:"speed,omitempty"`
+	Stability   *stability.Result   `json:"stability,omitempty"`
+	DNSBench    *dnsbench.Result    `json:"dnsbench,omitempty"`
+}
 
 // State is the persisted document. Version 2 adds the long-term baseline
 // series, grouped incidents and recent route changes; a version-1 file loads
@@ -26,6 +38,7 @@ type State struct {
 	Incidents      []incident.Incident   `json:"incidents,omitempty"`
 	NextIncidentID int                   `json:"next_incident_id,omitempty"`
 	RouteChanges   []pathmon.RouteChange `json:"route_changes,omitempty"`
+	Tests          Tests                 `json:"tests,omitempty"`
 }
 
 const currentVersion = 2

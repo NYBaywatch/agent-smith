@@ -14,12 +14,15 @@ import (
 
 	"github.com/NYBaywatch/agent-smith/internal/bufferbloat"
 	"github.com/NYBaywatch/agent-smith/internal/classifier"
+	"github.com/NYBaywatch/agent-smith/internal/dnsbench"
 	"github.com/NYBaywatch/agent-smith/internal/dnsprobe"
 	"github.com/NYBaywatch/agent-smith/internal/ispinfo"
 	"github.com/NYBaywatch/agent-smith/internal/metrics"
 	"github.com/NYBaywatch/agent-smith/internal/model"
 	"github.com/NYBaywatch/agent-smith/internal/netinfo"
 	"github.com/NYBaywatch/agent-smith/internal/probe"
+	"github.com/NYBaywatch/agent-smith/internal/speedtest"
+	"github.com/NYBaywatch/agent-smith/internal/stability"
 	"github.com/NYBaywatch/agent-smith/internal/store"
 	"github.com/NYBaywatch/agent-smith/internal/sysinfo"
 )
@@ -81,6 +84,9 @@ type Engine struct {
 	dnsServers []dnsprobe.ServerResult
 	conn       *ispinfo.Info
 	lastBB     *bufferbloat.Result
+	lastSpeed  *speedtest.Result
+	lastStab   *stability.Result
+	lastDNS    *dnsbench.Result
 	latest     model.Snapshot
 	subs       []chan model.Snapshot
 
@@ -112,6 +118,7 @@ func New(cfg Config) (*Engine, error) {
 		e.issues = st.Issues
 		e.ipm.tracker.Import(st.Baseline)
 		e.ipm.grouper.Import(st.Incidents, st.NextIncidentID)
+		e.restoreTests(st.Tests)
 	}
 	return e, nil
 }
@@ -323,6 +330,7 @@ func (e *Engine) save() {
 	st := store.State{
 		History: append([]model.HistPoint(nil), e.history...),
 		Issues:  append([]model.Issue(nil), e.issues...),
+		Tests:   store.Tests{Bufferbloat: e.lastBB, Speed: e.lastSpeed, Stability: e.lastStab, DNSBench: e.lastDNS},
 	}
 	e.mu.RUnlock()
 	st.Baseline = e.ipm.tracker.Export()
@@ -441,6 +449,9 @@ func (e *Engine) buildSnapshot(sys sysinfo.Stats) model.Snapshot {
 		DNSServers:  e.dnsServers,
 		Conn:        e.conn,
 		Bufferbloat: e.lastBB,
+		Speed:       e.lastSpeed,
+		Stability:   e.lastStab,
+		DNSBench:    e.lastDNS,
 	}
 
 	if e.gateway != nil {
@@ -545,6 +556,7 @@ func (e *Engine) RunBufferbloat(ctx context.Context, opt bufferbloat.Options) (b
 		r := res
 		e.lastBB = &r
 		e.mu.Unlock()
+		e.save()
 	}
 	return res, err
 }

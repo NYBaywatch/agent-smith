@@ -1,0 +1,32 @@
+- generic [ref=f11e5]:
+  - img "Organization background image" [ref=f11e6]
+  - generic [ref=f11e7]:
+    - generic [ref=f11e12]:
+      - generic [ref=f11e13]:
+        - img "Microsoft" [ref=f11e16]
+        - main [ref=f11e17]:
+          - generic [ref=f11e20]:
+            - heading "Sign in" [level=1] [ref=f11e24]
+            - generic [ref=f11e25]:
+              - alert
+              - generic [ref=f11e27]:
+                - textbox "Enter your email, phone, or Skype." [active] [ref=f11e28]:
+                  - /placeholder: Email, phone, or Skype
+                - textbox [aria-hidden] [ref=f11e29]
+            - generic [ref=f11e33]:
+              - generic [ref=f11e34]:
+                - text: No account?
+                - link "Create a Microsoft account" [ref=f11e35] [cursor=pointer]:
+                  - /url: https://login.live.com/oauth20_authorize.srf?client_id=6ba09155-cb24-475b-b24f-b4e28fc74365&scope=openid+profile+email+offline_access&redirect_uri=https%3a%2f%2fwww.microsoft.com%2fen-us%2fwdsi%2ffilesubmission&response_type=code+id_token&state=OpenIdConnect.AuthenticationProperties%3dVNnm-luWhsWZSQDf3GMLfQkP60Pq0SsnN1U9SawNMPY5CkxyNbg76gemaYY3NXZBBFpGjETuRjZ7zdvWfJnDSvDuKOlhF6hllBMI1tU1-G_pcUfqvXCMSuj1UJADcvBCgxtvevg7v129j46UWz41bJv9udWrs5aaOtNkz5Ql8YwIadcHPgnhNdxboeXC57GC7SoJGiYjGJE2OMVje7ta1IVxILLing7vt3rk7fwtSZyY7fEn_uAKf3jxc6Xs6zo5ATcCweaBiaMdMcwjlvamWx8mqH4ckJOOf6loLy2inPw&response_mode=form_post&nonce=639250158870885004.YjA2NGZiZGEtN2JiYi00ODY1LTg1ZjAtODE3NGU1OGJkODAzYzFmNzkxOGYtZWI5Mi00MGU3LTg1YWItMjU1YTgyMWJiYjYw&x-client-SKU=ID_NET472&x-client-Ver=8.1.2.0&uaid=ee153277a8b44532b39219043abed83d&msproxy=1&issuer=mso&tenant=common&ui_locales=en-US&signup=1&lw=1&fl=easi2&epctrc=JHVNJUK3AvBHDWkbmhtygLf8pE3JwFnyNmfbSr%2bOv6o%3d3%3a1%3aCANARY%3aVLeDyoQXaW4F4BJh7VWyfmCNvNpOPw0zVa8WhFzUGNA%3d&epct=PBgABDgEAAAA9VeaV3ywaSLp1O3c4_Et5RXZvU3RzQXJ0aWZhY3RzCAAAAAAAnPyPMTER5z6ImqFl1NsDp4pZXWcPFjz9XjPCAjRuaccJPcfv3iqd5ZR-kvrFK_R-LvT4aSq41LSIF-ftOz9gMGJGl5y6dAgDKqObR338ENq65RzZieeGN5PwlWgg_FTKqVm5xpa4U6HsEmTlzIuIeGdDJPMH3uRxkddTygJ8BkOmVtl4-_kmgGpKXY9cn_VBazlNevRYNfO0iSPP5SVTMPNXwirg6yJG7Cvkajy5A3MOnOCpZ89Qv00zMeE_qMPWTINQwPadmQwCMOOuHUzojaKXbUdMDRCut2y-qw76EGrrAVM2urWpOeWQLtwCAenpaCf5NhCjwT6TjwX3aBL9BmEyc5cV5qL3Qsy5qax4Tm-KWn-ZbwjVMd83TEr2F49aTzlw9wxg2t5f4cMZw4WirXuh4lx45WUOqDkVgBfBkzl_nm_4LINfBSYeuvuE1xDDafLtoKOwJrRZjEPlbiZOg9S2drCAYKNyfGaQcY9BWPRlSr5d15UvdHqY817Q5HaLaTkknr5uXnOG25BH92Ix5EIm9CRD29wCSpmkLMYtsIt3JdL5Ko6HZ6beVrB7oh9LxjsBeQMEY_DgptLTe3YBVALx-A43-qyM2ff4S_OUTLWLZIV9EbRfUgF8svn_DcjfWTm9NnlItK_ZW0l-iSeSiGbtEgRtkIv8R0m9rEmQPYCEFo_fQGU5Of5QbtQSN3A9TjiIgEiy7_OlqA-dUumoB3qYJ_NByWThBohAwwba5OpuPWkHatAO0I8zvSRh9xLjIAA&jshs=0
+                  - text: Create one!
+              - link "Can’t access your account?" [ref=f11e37] [cursor=pointer]:
+                - /url: "#"
+            - button "Next" [ref=f11e40] [cursor=pointer]
+      - button "Sign-in options" [ref=f11e46] [cursor=pointer]
+    - contentinfo [ref=f11e51]:
+      - generic [ref=f11e52]:
+        - link "Terms of use" [ref=f11e53] [cursor=pointer]:
+          - /url: https://www.microsoft.com/en-US/servicesagreement/
+        - link "Privacy & cookies" [ref=f11e54] [cursor=pointer]:
+          - /url: https://privacy.microsoft.com/en-US/privacystatement
+        - button "Click here for troubleshooting information" [ref=f11e55] [cursor=pointer]: ...
