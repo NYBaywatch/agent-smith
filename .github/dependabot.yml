@@ -1,0 +1,21 @@
+version: 2
+updates:
+  # Go module dependencies (wails, systray, gopsutil, x/sys, ...).
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      go-minor-and-patch:
+        update-types: [minor, patch]
+    labels: [dependencies, go]
+
+  # The workflow actions are pinned to commit SHAs; Dependabot bumps the SHA
+  # and keeps the "# vN" comment in step.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    labels: [dependencies, ci]

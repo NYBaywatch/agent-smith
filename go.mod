@@ -1,14 +1,14 @@
 module github.com/NYBaywatch/agent-smith
 
-go 1.26.4
+go 1.26.6
 
 require (
 	fyne.io/systray v1.12.2
 	github.com/gen2brain/beeep v0.11.2
 	github.com/shirou/gopsutil/v4 v4.26.5
 	github.com/wailsapp/wails/v2 v2.16.0
-	golang.org/x/net v0.56.0
-	golang.org/x/sys v0.46.0
+	golang.org/x/net v0.59.0
+	golang.org/x/sys v0.48.0
 )
 
 require (
@@ -49,6 +49,6 @@ require (
 	github.com/wailsapp/go-webview2 v1.0.22 // indirect
 	github.com/wailsapp/mimetype v1.4.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	golang.org/x/crypto v0.53.0 // indirect
-	golang.org/x/text v0.39.0 // indirect
+	golang.org/x/crypto v0.57.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 )
