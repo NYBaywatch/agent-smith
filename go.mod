@@ -1,6 +1,6 @@
 module github.com/NYBaywatch/agent-smith
 
-go 1.26.6
+go 1.26.10
 
 require (
 	fyne.io/systray v1.12.2
