@@ -124,7 +124,7 @@ no live BGP feed (RIPEstat is polled once an hour); no HTTP/3, ECN or MQTT probe
   egress interface (Wi-Fi *or* Ethernet) even when both are connected.
 - 📊 **System resources** — total CPU, total memory (used/total), and **total GPU**
   utilization (Windows PDH), so machine-side bottlenecks are caught too.
-- 🧪 **On-demand bufferbloat test** — saturates the link and grades added latency (A+…F).
+- 🧪 **On-demand tests** — speed test (download/upload with latency under load per direction), stability burst (200 probes: loss, jitter, p99, outage gaps), DNS resolver benchmark, and the **bufferbloat test** — saturates the link and grades added latency (A+…F).
 - 🗂️ **Event log with drill-down** — every detected problem is recorded with a timestamp,
   the exact degraded metrics, system state, and a `ps`-style snapshot of the busiest
   processes; **persists across sessions**, alongside incidents and 7 days of baselines.

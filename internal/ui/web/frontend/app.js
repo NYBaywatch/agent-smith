@@ -44,13 +44,13 @@
 
   // ---------- screens skeletons (cards are stable containers, updated in place) ----------
   const screens = {
-    home: ['banner', 'hero', 'tiles', 'chart', 'path', 'system', 'connection', 'dns'],
+    home: ['banner', 'hero', 'tiles', 'tests', 'chart', 'path', 'system', 'connection', 'dns'],
     services: ['svc-head', 'svc-list'],
     route: ['rt-head', 'rt-diag', 'rt-ladder', 'rt-changes', 'rt-trace'],
     insights: ['in-slo', 'in-sla', 'in-bgp', 'in-auth', 'in-alerts'],
     events: ['ev-incidents', 'ev-list', 'ev-actions'],
   };
-  const spanCards = new Set(['banner', 'hero', 'chart', 'svc-list', 'rt-ladder', 'in-sla', 'ev-list']);
+  const spanCards = new Set(['banner', 'hero', 'tests', 'chart', 'svc-list', 'rt-ladder', 'in-sla', 'ev-list']);
   for (const [name, cards] of Object.entries(screens)) {
     const sec = $(`.screen[data-screen="${name}"]`);
     for (const id of cards) {
@@ -99,9 +99,9 @@
         </div>
         ${v.fix && v.culprit !== 'Healthy' ? `<div class="chip fix"><b>Fix</b>&nbsp;${esc(v.fix)}</div>` : ''}
         <div class="hero-actions">
-          <button class="btn primary" id="btn-bb" ${S.busyBB ? 'disabled' : ''}>
+          <button class="btn primary" id="btn-bb">
             <svg viewBox="0 0 24 24"><path d="M12 3v9l5 3"/><circle cx="12" cy="12" r="9"/></svg>
-            ${S.busyBB ? 'Testing… ~10 s' : 'Bufferbloat test'}
+            Bufferbloat test
           </button>
           ${bb ? `<span class="chip ${gradeClass(bb.grade)}">Grade <b>${esc(bb.grade)}</b> · +${msN(bb.added_ms)} ms under load · ${num(bb.down_mbps)} Mbps</span>` : `<span class="chip">${S.busyBB ? 'Saturating the link…' : 'Latency under load not measured yet'}</span>`}
         </div>
@@ -140,6 +140,8 @@
           <span class="foot">${bb ? `idle ${msN(bb.idle_ms)} → loaded ${msN(bb.loaded_ms)} ms` : 'A/B is healthy for real-time'}</span>
         </div>
       </div>`);
+
+    if (window.renderTestsCard) window.renderTestsCard();
 
     // Chart card (chart body is drawn separately so hover state survives ticks)
     if (!card('chart').firstChild) {
@@ -626,16 +628,7 @@
     if (t.id === 'btn-min') return bridge.call('Minimise');
     if (t.id === 'btn-hide') { toast('Still watching from the tray'); return bridge.call('Hide'); }
     if (t.dataset.url) { e.preventDefault(); return bridge.call('OpenURL', t.dataset.url); }
-    if (t.id === 'btn-bb') {
-      if (S.busyBB) return;
-      S.busyBB = true; renderHome();
-      const r = await bridge.call('RunBufferbloat');
-      S.busyBB = false;
-      if (r && !r.error) toast(`Bufferbloat grade ${r.grade} · +${msN(r.added_ms)} ms under load`, gradeClass(r.grade) === 'good' ? 'good' : 'bad');
-      else toast(`Test failed: ${r ? r.error : 'no response'}`, 'bad');
-      renderHome();
-      return;
-    }
+    if (t.id === 'btn-bb') return; // handled by tests.js
     if (t.id === 'btn-checks') {
       if (S.busyChecks) return;
       S.busyChecks = true; renderServices();
@@ -735,7 +728,7 @@
         route_changes: [],
         sla: [{ key: 'internet', name: 'Internet', kind: 'ping', avail_1h_pct: 100, avail_24h_pct: 99.97, avail_7d_pct: 99.98, p95_24h_ms: 24, mean_24h_ms: 18, samples_24h: 5000, baseline_ms: 18, baseline_valid: true, budget_left_pct: 71, slo_ok: true, availability_ok: true, latency_ok: true, now_ms: 18, z: 0.2, anomalous: false }, { key: 'isp', name: 'ISP hop', kind: 'ping', avail_1h_pct: 100, avail_24h_pct: 100, avail_7d_pct: 100, p95_24h_ms: 14, mean_24h_ms: 10, samples_24h: 5000, baseline_ms: 10, baseline_valid: true, budget_left_pct: 100, slo_ok: true, availability_ok: true, latency_ok: true, now_ms: 10, z: 0, anomalous: false }, { key: 'http:x', name: 'GitHub API', kind: 'http', avail_1h_pct: 60, avail_24h_pct: 97.5, avail_7d_pct: 99.1, p95_24h_ms: 140, mean_24h_ms: 85, samples_24h: 1400, baseline_ms: 80, baseline_valid: true, budget_left_pct: -12, slo_ok: false, availability_ok: false, latency_ok: true, now_ms: 0, z: 0, anomalous: false }],
         slo: { availability_pct: 99.9, p95_ms: 100 },
-        incident: null, alerts: { raw: 612, incidents: 4 },
+        incident: null, alerts: { raw: 612, incidents: 4 }, tests: { bufferbloat: null, speed: null, stability: null, dns: null },
       };
     },
     History() { const out = []; const n = 600; for (let i = 0; i < n; i++) { const t = new Date(Date.now() - (n - i) * 1000).toISOString(); out.push({ t, gw: 1 + Math.random() * 0.6, isp: 9 + Math.random() * 3 + (i > 400 && i < 430 ? 20 : 0), net: 16 + Math.random() * 5 + (i > 400 && i < 430 ? 22 : 0) }); } return out; },
@@ -744,6 +737,9 @@
     RunBufferbloat: () => ({ grade: 'A', added_ms: 12, idle_ms: 18, loaded_ms: 30, down_mbps: 412, error: '' }),
     RunChecks: () => mock.Snapshot().services, Trace: (h) => mock.Snapshot().paths[0], ClearIssues: () => null, ClearIncidents: () => null, Minimise: () => null, Hide: () => null, OpenURL: () => null,
   };
+
+  // Shared helpers for the tests module (tests.js).
+  window.AS = { S, $, $$, esc, ms, msN, pct, num, clock, day, dur, ratingClass, sevClass, bridge, openSheet, closeSheet, toast, setHTML, card, renderHome };
 
   boot();
 })();

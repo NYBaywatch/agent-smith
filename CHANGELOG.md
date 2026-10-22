@@ -6,6 +6,28 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added — on-demand tests
+- **Speed test** (`internal/speedtest`, `--speedtest`): download and upload
+  throughput over parallel streams with latency sampled under load in each
+  direction, each direction graded on the bufferbloat A+…F scale, plus a
+  plain-language summary.
+- **Stability burst** (`internal/stability`, `--stability`): 200 probes at 50 ms
+  to the healthiest anchor — loss, jitter, p50/p95/p99/max, longest outage gap,
+  spike count and a real-time-readiness verdict, with a per-probe strip chart.
+- **DNS benchmark** (`internal/dnsbench`, `--dnsbench`): races the configured
+  resolver against Cloudflare, Google, Quad9, OpenDNS and the router on popular
+  names plus an uncached lookup; ranks them and recommends a switch only when a
+  cache miss is materially slower than the fastest public resolver.
+- **Tests card** on Home with the last result of each test, live progress sheets
+  and result sheets; results persist in `state.json`.
+
+### Fixed
+- **Bufferbloat test failed with "link was not saturated"**: the download
+  source rate-limited (HTTP 429) and the fallback rejected parallel streams. Load
+  generation now lives in `internal/loadgen` with Cloudflare (download + upload),
+  CacheFly, ThinkBroadband and Hetzner sources; the picker probes with the real
+  chunk size and both tests fall back to the next source when one throttles.
+
 ## [0.2.0] — 2026-09-14
 
 ### Added — Internet performance monitoring

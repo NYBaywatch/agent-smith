@@ -24,6 +24,9 @@ func main() {
 	trace := flag.String("trace", "", "run a one-shot enriched traceroute to HOST and exit")
 	check := flag.Bool("check", false, "run every synthetic HTTP check once and exit")
 	report := flag.Bool("report", false, "print the SLA / baseline / incident report and exit")
+	speed := flag.Bool("speedtest", false, "run a one-shot download/upload speed test with latency under load and exit")
+	stab := flag.Bool("stability", false, "run a one-shot 200-probe stability burst and exit")
+	dnsb := flag.Bool("dnsbench", false, "run a one-shot DNS resolver benchmark and exit")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: agent-smith [flags]\n\n")
@@ -50,6 +53,12 @@ func main() {
 		oneShot = runChecks
 	case *report:
 		oneShot = runReport
+	case *speed:
+		oneShot = runSpeedTest
+	case *stab:
+		oneShot = runStability
+	case *dnsb:
+		oneShot = runDNSBench
 	}
 	if oneShot != nil {
 		if err := oneShot(ctx); err != nil {

@@ -1,0 +1,304 @@
+- generic [active] [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: javascript:void(0)
+  - generic [ref=e5]:
+    - link "Skip to main content" [ref=e6] [cursor=pointer]:
+      - /url: javascript:void(0)
+    - banner [ref=e7]:
+      - generic [ref=e9]:
+        - button "All Microsoft expand to see list of Microsoft products and services" [ref=e10] [cursor=pointer]: 
+        - text: 
+        - link "Microsoft" [ref=e11] [cursor=pointer]:
+          - /url: https://www.microsoft.com
+          - generic [aria-hidden] [ref=e13]: Microsoft
+        - text:  
+        - button "Microsoft Security Intelligence" [ref=e15] [cursor=pointer]: Microsoft Security Intelligence 
+        - text:         
+        - generic [ref=e16]:
+          - generic:     
+          - search:
+            - button "Search Microsoft.com" [ref=e18] [cursor=pointer]: 
+          - link "0 items in shopping cart" [ref=e19] [cursor=pointer]:
+            - /url: https://www.microsoft.com/en-us/store/cart
+            - text: 
+          - link "Sign in to your account" [ref=e22] [cursor=pointer]:
+            - /url: https://www.microsoft.com/en-us/wdsi/auth/signin?ru=https%3A%2F%2Fwww.microsoft.com%2Fen-us%2Fwdsi%2Ffilesubmission
+  - generic [ref=e26]:
+    - button "Provide feedback" [ref=e28] [cursor=pointer]
+    - main [ref=e31]:
+      - heading "Submit a file for malware analysis" [level=1] [ref=e33]
+      - generic [ref=e34]:
+        - paragraph [ref=e35]:
+          - text: Microsoft security researchers analyze suspicious files to determine if they are threats, unwanted applications, or normal files. Submit files you think are malware or files that you believe have been incorrectly classified as malware. For more information, read the
+          - link "submission guidelines" [ref=e36] [cursor=pointer]:
+            - /url: https://www.microsoft.com/en-us/security/portal/mmpc/help/submission-help.aspx
+          - text: .
+        - generic [ref=e37]: 
+        - paragraph [ref=e38]: Submit file as a
+        - group [ref=e39]:
+          - button [ref=e40] [cursor=pointer]:
+            - generic [ref=e41]:
+              - paragraph [ref=e42]: Home customer
+              - paragraph [ref=e43]: Customers using Microsoft security products at home or in small organizations
+          - button [ref=e44] [cursor=pointer]:
+            - generic [ref=e45]:
+              - paragraph [ref=e46]: Enterprise customer
+              - paragraph [ref=e47]: Corporate account holders with licenses to run Microsoft security solutions in their businesses
+          - button [ref=e48] [cursor=pointer]:
+            - generic [ref=e49]:
+              - paragraph [ref=e50]: Software developer
+              - paragraph [ref=e51]: Software providers wanting to validate detection of their products
+        - button "Continue" [disabled] [ref=e53]
+    - text:                            
+  - contentinfo [ref=e60]:
+    - navigation "Footer Resource links" [ref=e61]:
+      - generic [ref=e62]:
+        - generic [ref=e63]:
+          - heading "What's new" [level=2] [ref=e64]
+          - list [ref=e65]:
+            - listitem [ref=e66]:
+              - link "Surface Pro What's new" [ref=e67] [cursor=pointer]:
+                - /url: https://www.microsoft.com/surface/devices/surface-pro
+                - text: Surface Pro
+            - listitem [ref=e68]:
+              - link "Surface Laptop What's new" [ref=e69] [cursor=pointer]:
+                - /url: https://www.microsoft.com/surface/devices/surface-laptop
+                - text: Surface Laptop
+            - listitem [ref=e70]:
+              - link "Surface Laptop Ultra What's new" [ref=e71] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/surface/devices/surface-laptop-ultra?icid=DSM_Footer_WhatsNew_SurfaceLaptopUltra
+                - text: Surface Laptop Ultra
+            - listitem [ref=e72]:
+              - link "Surface RTX Spark Dev Box What's new" [ref=e73] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/surface/devices/surface-rtx-spark-dev-box?icid=DSM_Footer_WhatsNew_SurfaceRTXSparkDevBox
+                - text: Surface RTX Spark Dev Box
+            - listitem [ref=e74]:
+              - link "Copilot for organizations What's new" [ref=e75] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/microsoft-copilot/organizations?icid=DSM_Footer_CopilotOrganizations
+                - text: Copilot for organizations
+            - listitem [ref=e76]:
+              - link "Copilot for personal use What's new" [ref=e77] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/microsoft-copilot/for-individuals?form=MY02PT&OCID=GE_web_Copilot_Free_868g3t5nj
+                - text: Copilot for personal use
+            - listitem [ref=e78]:
+              - link "Explore Microsoft products What's new" [ref=e79] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/microsoft-products-and-apps
+                - text: Explore Microsoft products
+            - listitem [ref=e80]:
+              - link "Windows 11 apps What's new" [ref=e81] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/windows/apps-for-windows?icid=DSM_Footer_WhatsNew_Windows11apps
+                - text: Windows 11 apps
+        - generic [ref=e82]:
+          - heading "Microsoft Store" [level=2] [ref=e83]
+          - list [ref=e84]:
+            - listitem [ref=e85]:
+              - link "Account profile Microsoft Store" [ref=e86] [cursor=pointer]:
+                - /url: https://account.microsoft.com/
+                - text: Account profile
+            - listitem [ref=e87]:
+              - link "Download Center Microsoft Store" [ref=e88] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/download
+                - text: Download Center
+            - listitem [ref=e89]:
+              - link "Microsoft Store support Microsoft Store" [ref=e90] [cursor=pointer]:
+                - /url: https://go.microsoft.com/fwlink/?linkid=2139749
+                - text: Microsoft Store support
+            - listitem [ref=e91]:
+              - link "Returns Microsoft Store" [ref=e92] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/store/b/returns
+                - text: Returns
+            - listitem [ref=e93]:
+              - link "Order tracking Microsoft Store" [ref=e94] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/store/b/order-tracking
+                - text: Order tracking
+            - listitem [ref=e95]:
+              - link "Certified Refurbished Microsoft Store" [ref=e96] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/store/b/certified-refurbished-products
+                - text: Certified Refurbished
+            - listitem [ref=e97]:
+              - link "Microsoft Store Promise Microsoft Store" [ref=e98] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/store/b/why-microsoft-store?icid=footer_why-msft-store_7102020
+                - text: Microsoft Store Promise
+            - listitem [ref=e99]:
+              - link "Flexible Payments Microsoft Store" [ref=e100] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/store/b/payment-financing-options?icid=footer_financing_vcc
+                - text: Flexible Payments
+        - generic [ref=e101]:
+          - heading "Education" [level=2] [ref=e102]
+          - list [ref=e103]:
+            - listitem [ref=e104]:
+              - link "Microsoft in education Education" [ref=e105] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/education
+                - text: Microsoft in education
+            - listitem [ref=e106]:
+              - link "Devices for education Education" [ref=e107] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/education/devices/overview
+                - text: Devices for education
+            - listitem [ref=e108]:
+              - link "Microsoft Teams for Education Education" [ref=e109] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/education/products/teams
+                - text: Microsoft Teams for Education
+            - listitem [ref=e110]:
+              - link "Microsoft 365 Education Education" [ref=e111] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/education/products/microsoft-365
+                - text: Microsoft 365 Education
+            - listitem [ref=e112]:
+              - link "How to buy for your school Education" [ref=e113] [cursor=pointer]:
+                - /url: https://www.microsoft.com/education/how-to-buy
+                - text: How to buy for your school
+            - listitem [ref=e114]:
+              - link "Educator training and development Education" [ref=e115] [cursor=pointer]:
+                - /url: https://education.microsoft.com/
+                - text: Educator training and development
+            - listitem [ref=e116]:
+              - link "Deals for students and parents Education" [ref=e117] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/store/b/education
+                - text: Deals for students and parents
+            - listitem [ref=e118]:
+              - link "AI for education Education" [ref=e119] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/education/ai-in-education
+                - text: AI for education
+      - generic [ref=e120]:
+        - generic [ref=e121]:
+          - heading "Business" [level=2] [ref=e122]
+          - list [ref=e123]:
+            - listitem [ref=e124]:
+              - link "Microsoft AI Business" [ref=e125] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/ai?icid=DSM_Footer_AI
+                - text: Microsoft AI
+            - listitem [ref=e126]:
+              - link "Microsoft Security Business" [ref=e127] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/security
+                - text: Microsoft Security
+            - listitem [ref=e128]:
+              - link "Dynamics 365 Business" [ref=e129] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/dynamics-365
+                - text: Dynamics 365
+            - listitem [ref=e130]:
+              - link "Microsoft 365 Business" [ref=e131] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/microsoft-365/business
+                - text: Microsoft 365
+            - listitem [ref=e132]:
+              - link "Microsoft Power Platform Business" [ref=e133] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/power-platform
+                - text: Microsoft Power Platform
+            - listitem [ref=e134]:
+              - link "Microsoft Teams Business" [ref=e135] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/microsoft-teams/group-chat-software
+                - text: Microsoft Teams
+            - listitem [ref=e136]:
+              - link "Microsoft 365 Copilot Business" [ref=e137] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/microsoft-365-copilot?icid=DSM_Footer_Microsoft365Copilot
+                - text: Microsoft 365 Copilot
+            - listitem [ref=e138]:
+              - link "Small Business Business" [ref=e139] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/store/b/business?icid=CNavBusinessStore
+                - text: Small Business
+        - generic [ref=e140]:
+          - heading "Developer & IT" [level=2] [ref=e141]
+          - list [ref=e142]:
+            - listitem [ref=e143]:
+              - link "Azure Developer & IT" [ref=e144] [cursor=pointer]:
+                - /url: https://azure.microsoft.com/en-us/
+                - text: Azure
+            - listitem [ref=e145]:
+              - link "Microsoft Developer Developer & IT" [ref=e146] [cursor=pointer]:
+                - /url: https://developer.microsoft.com/en-us/
+                - text: Microsoft Developer
+            - listitem [ref=e147]:
+              - link "Microsoft Learn Developer & IT" [ref=e148] [cursor=pointer]:
+                - /url: https://learn.microsoft.com/
+                - text: Microsoft Learn
+            - listitem [ref=e149]:
+              - link "Support for AI marketplace apps Developer & IT" [ref=e150] [cursor=pointer]:
+                - /url: https://www.microsoft.com/software-development-companies/offers-benefits/isv-success?icid=DSM_Footer_SupportAIMarketplace&ocid=cmm3atxvn98
+                - text: Support for AI marketplace apps
+            - listitem [ref=e151]:
+              - link "Microsoft Tech Community Developer & IT" [ref=e152] [cursor=pointer]:
+                - /url: https://techcommunity.microsoft.com/
+                - text: Microsoft Tech Community
+            - listitem [ref=e153]:
+              - link "Microsoft Marketplace Developer & IT" [ref=e154] [cursor=pointer]:
+                - /url: https://marketplace.microsoft.com?icid=DSM_Footer_Marketplace&ocid=cmm3atxvn98
+                - text: Microsoft Marketplace
+            - listitem [ref=e155]:
+              - link "Software companies Developer & IT" [ref=e156] [cursor=pointer]:
+                - /url: https://www.microsoft.com/software-development-companies?icid=DSM_Footer_SoftwareCompanies&ocid=cmm3atxvn98
+                - text: Software companies
+            - listitem [ref=e157]:
+              - link "Visual Studio Developer & IT" [ref=e158] [cursor=pointer]:
+                - /url: https://visualstudio.microsoft.com/
+                - text: Visual Studio
+        - generic [ref=e159]:
+          - heading "Company" [level=2] [ref=e160]
+          - list [ref=e161]:
+            - listitem [ref=e162]:
+              - link "Careers Company" [ref=e163] [cursor=pointer]:
+                - /url: https://careers.microsoft.com/
+                - text: Careers
+            - listitem [ref=e164]:
+              - link "About Microsoft Company" [ref=e165] [cursor=pointer]:
+                - /url: https://www.microsoft.com/about
+                - text: About Microsoft
+            - listitem [ref=e166]:
+              - link "Company news Company" [ref=e167] [cursor=pointer]:
+                - /url: https://news.microsoft.com/source/?icid=DSM_Footer_Company_CompanyNews
+                - text: Company news
+            - listitem [ref=e168]:
+              - link "Privacy at Microsoft Company" [ref=e169] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/privacy?icid=DSM_Footer_Company_Privacy
+                - text: Privacy at Microsoft
+            - listitem [ref=e170]:
+              - link "Investors Company" [ref=e171] [cursor=pointer]:
+                - /url: https://www.microsoft.com/investor/default.aspx
+                - text: Investors
+            - listitem [ref=e172]:
+              - link "Diversity and inclusion Company" [ref=e173] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/diversity/default?icid=DSM_Footer_Company_Diversity
+                - text: Diversity and inclusion
+            - listitem [ref=e174]:
+              - link "Accessibility Company" [ref=e175] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/accessibility
+                - text: Accessibility
+            - listitem [ref=e176]:
+              - link "Sustainability Company" [ref=e177] [cursor=pointer]:
+                - /url: https://www.microsoft.com/en-us/corporate-responsibility/sustainability?icid=DSM_Footer_Sustainability
+                - text: Sustainability
+    - generic [ref=e178]:
+      - link "Content Language Selector. Currently set to English (United States)" [ref=e179] [cursor=pointer]:
+        - /url: https://www.microsoft.com/en-us/locale.aspx
+        - text:  English (United States)
+      - link "Your Privacy Choices Opt-Out Icon Your Privacy Choices" [ref=e180] [cursor=pointer]:
+        - /url: https://aka.ms/yourcaliforniaprivacychoices
+        - img "Your Privacy Choices Opt-Out Icon" [ref=e181]
+        - generic [ref=e186]: Your Privacy Choices
+      - link "Consumer Health Privacy" [ref=e187] [cursor=pointer]:
+        - /url: https://go.microsoft.com/fwlink/?linkid=2259814
+      - navigation "Microsoft corporate links" [ref=e189]:
+        - list [ref=e190]:
+          - listitem [ref=e191]:
+            - link "Sitemap" [ref=e192] [cursor=pointer]:
+              - /url: https://www.microsoft.com/en-us/sitemap1.aspx
+          - listitem [ref=e193]:
+            - link "Contact Microsoft" [ref=e194] [cursor=pointer]:
+              - /url: https://support.microsoft.com/contactus
+          - listitem [ref=e195]:
+            - link "Privacy" [ref=e196] [cursor=pointer]:
+              - /url: https://go.microsoft.com/fwlink/?LinkId=521839
+          - listitem [ref=e197]:
+            - link "Terms of use" [ref=e198] [cursor=pointer]:
+              - /url: https://go.microsoft.com/fwlink/?LinkID=206977
+          - listitem [ref=e199]:
+            - link "Trademarks" [ref=e200] [cursor=pointer]:
+              - /url: https://go.microsoft.com/fwlink/?linkid=2196228
+          - listitem [ref=e201]:
+            - link "Safety & eco" [ref=e202] [cursor=pointer]:
+              - /url: https://go.microsoft.com/fwlink/?linkid=2196227
+          - listitem [ref=e203]:
+            - link "Recycling" [ref=e204] [cursor=pointer]:
+              - /url: https://www.microsoft.com/en-us/legal/compliance/recycling
+          - listitem [ref=e205]:
+            - link "About our ads" [ref=e206] [cursor=pointer]:
+              - /url: https://choice.microsoft.com
+          - listitem [ref=e207]: © Microsoft 2026
+  - text:   

@@ -21,7 +21,6 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
-	"github.com/NYBaywatch/agent-smith/internal/bufferbloat"
 	"github.com/NYBaywatch/agent-smith/internal/config"
 	"github.com/NYBaywatch/agent-smith/internal/engine"
 	"github.com/NYBaywatch/agent-smith/internal/incident"
@@ -45,7 +44,7 @@ type App struct {
 	started time.Time
 
 	mu       sync.Mutex
-	bbBusy   bool
+	testBusy string // name of the on-demand test in flight, "" when idle
 	quitting bool
 	iconPath string
 }
@@ -139,32 +138,6 @@ func (a *App) Info() Info {
 	cp, _ := config.FilePath()
 	sp, _ := store.Path()
 	return Info{Version: a.version, ConfigPath: cp, StatePath: sp, Started: a.started.Format(time.RFC3339)}
-}
-
-// RunBufferbloat executes the latency-under-load test (blocking, ~10 s).
-func (a *App) RunBufferbloat() BufferbloatResult {
-	a.mu.Lock()
-	if a.bbBusy {
-		a.mu.Unlock()
-		return BufferbloatResult{Error: "a bufferbloat test is already running"}
-	}
-	a.bbBusy = true
-	a.mu.Unlock()
-	defer func() {
-		a.mu.Lock()
-		a.bbBusy = false
-		a.mu.Unlock()
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
-	defer cancel()
-	res, err := a.eng.RunBufferbloat(ctx, bufferbloat.DefaultOptions())
-	if err != nil {
-		return BufferbloatResult{Error: err.Error()}
-	}
-	return BufferbloatResult{
-		Grade: res.Grade, AddedMs: ms(res.Added), IdleMs: ms(res.IdleRTT), LoadedMs: ms(res.LoadedRTT), DownMbps: res.DownloadMbps,
-	}
 }
 
 // RunChecks executes every synthetic check now and returns the fresh results.
