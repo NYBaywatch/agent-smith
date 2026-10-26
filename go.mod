@@ -4,7 +4,7 @@ go 1.26.10
 
 require (
 	fyne.io/systray v1.12.2
-	github.com/gen2brain/beeep v0.11.2
+	github.com/gen2brain/beeep v0.11.3
 	github.com/shirou/gopsutil/v4 v4.26.9
 	github.com/wailsapp/wails/v2 v2.17.0
 	golang.org/x/net v0.61.0
