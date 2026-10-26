@@ -40,3 +40,6 @@ Thumbs.db
 
 # Brainstorming visual-companion sessions
 .superpowers/
+
+# Playwright MCP debug snapshots
+.playwright-mcp/
