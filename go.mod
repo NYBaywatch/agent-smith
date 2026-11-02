@@ -4,10 +4,10 @@ go 1.26.10
 
 require (
 	fyne.io/systray v1.12.2
-	github.com/gen2brain/beeep v0.11.2
-	github.com/shirou/gopsutil/v4 v4.26.9
+	github.com/gen2brain/beeep v0.11.3
+	github.com/shirou/gopsutil/v4 v4.26.10
 	github.com/wailsapp/wails/v2 v2.17.0
-	golang.org/x/net v0.61.0
+	golang.org/x/net v0.62.0
 	golang.org/x/sys v0.49.0
 )
 
@@ -15,7 +15,7 @@ require (
 	git.sr.ht/~jackmordaunt/go-toast v1.1.2 // indirect
 	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
-	github.com/ebitengine/purego v0.11.1 // indirect
+	github.com/ebitengine/purego v0.11.2 // indirect
 	github.com/esiqveland/notify v0.13.3 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.16 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
